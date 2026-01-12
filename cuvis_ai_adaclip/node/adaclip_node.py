@@ -117,6 +117,15 @@ class AdaCLIPDetector(Node):
         self.enable_gradients = enable_gradients
         self.use_torch_preprocess = use_torch_preprocess
         self._warmup_done = False
+        
+        # Log initialization parameters at INFO level for debugging
+        logger.info(
+            f"[AdaCLIPDetector] Initialized: "
+            f"prompt_text='{self.prompt_text}', "
+            f"use_half_precision={self.use_half_precision}, "
+            f"backbone={self.backbone}, "
+            f"image_size={self.image_size}"
+        )
 
         # Lazy initialization - will be registered as submodule when loaded
         self._adaclip_model: AdaCLIPModel | None = None
@@ -356,6 +365,14 @@ class AdaCLIPDetector(Node):
         assert self._adaclip_model is not None
 
         b, h, w, _ = rgb_image.shape
+        
+        # DEBUG: Log input tensor stats for debugging score differences
+        logger.debug(
+            f"[AdaCLIPDetector] Input: shape={rgb_image.shape}, "
+            f"device={rgb_image.device}, dtype={rgb_image.dtype}, "
+            f"min={rgb_image.min().item():.6f}, max={rgb_image.max().item():.6f}, "
+            f"mean={rgb_image.mean().item():.6f}"
+        )
 
         # Preprocess images
         preprocess_start = time.perf_counter()
@@ -365,6 +382,14 @@ class AdaCLIPDetector(Node):
         logger.info(
             f"[AdaCLIPDetector] Preprocessing time: {preprocess_time_ms:.2f}ms "
             f"(method={'tensor' if self.use_torch_preprocess else 'PIL'})"
+        )
+        
+        # DEBUG: Log preprocessed tensor stats
+        logger.debug(
+            f"[AdaCLIPDetector] Preprocessed: shape={img_tensor.shape}, "
+            f"device={img_tensor.device}, dtype={img_tensor.dtype}, "
+            f"min={img_tensor.min().item():.6f}, max={img_tensor.max().item():.6f}, "
+            f"mean={img_tensor.mean().item():.6f}"
         )
         
         # Convert to half precision if enabled
@@ -429,6 +454,16 @@ class AdaCLIPDetector(Node):
         logger.info(
             f"[AdaCLIPDetector] Inference time: {inference_time_ms:.1f}ms "
             f"(batch_size={b}, per_image={inference_time_ms/b:.1f}ms)"
+        )
+        
+        # DEBUG: Log raw output stats before postprocessing
+        logger.debug(
+            f"[AdaCLIPDetector] Raw anomaly_map: shape={anomaly_map.shape}, "
+            f"min={anomaly_map.min().item():.6f}, max={anomaly_map.max().item():.6f}, "
+            f"mean={anomaly_map.mean().item():.6f}"
+        )
+        logger.debug(
+            f"[AdaCLIPDetector] Raw anomaly_score: {anomaly_score.tolist()}"
         )
 
         # Resize anomaly map back to original size if needed
