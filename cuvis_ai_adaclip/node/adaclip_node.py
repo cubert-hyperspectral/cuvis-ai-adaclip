@@ -118,8 +118,8 @@ class AdaCLIPDetector(Node):
         self.use_torch_preprocess = use_torch_preprocess
         self._warmup_done = False
         
-        # Log initialization parameters at INFO level for debugging
-        logger.info(
+        # Log initialization parameters at DEBUG level (only shown if debug logging enabled)
+        logger.debug(
             f"[AdaCLIPDetector] Initialized: "
             f"prompt_text='{self.prompt_text}', "
             f"use_half_precision={self.use_half_precision}, "
@@ -196,22 +196,22 @@ class AdaCLIPDetector(Node):
         self._preprocess = model.get_preprocess()
         self._initialized_flag.fill_(True)
 
-        # Debug: Log device information
+        # Debug: Log device information (DEBUG level - only shown if debug logging enabled)
         model_device = next(self._adaclip_model.parameters()).device if list(self._adaclip_model.parameters()) else torch.device("cpu")
-        logger.info(f"[AdaCLIPDetector] Model initialized on device: {model_device}")
-        logger.info(f"[AdaCLIPDetector] CUDA available: {torch.cuda.is_available()}")
+        logger.debug(f"[AdaCLIPDetector] Model initialized on device: {model_device}")
+        logger.debug(f"[AdaCLIPDetector] CUDA available: {torch.cuda.is_available()}")
         if torch.cuda.is_available():
-            logger.info(f"[AdaCLIPDetector] CUDA device: {torch.cuda.get_device_name(0)}")
-        logger.info(f"[AdaCLIPDetector] Preprocessing method: {'tensor (fast)' if self.use_torch_preprocess else 'PIL (exact match)'}")
+            logger.debug(f"[AdaCLIPDetector] CUDA device: {torch.cuda.get_device_name(0)}")
+        logger.debug(f"[AdaCLIPDetector] Preprocessing method: {'tensor (fast)' if self.use_torch_preprocess else 'PIL (exact match)'}")
 
         # Apply optimizations after model is loaded
         if self.use_half_precision and torch.cuda.is_available():
             try:
-                logger.info("[AdaCLIPDetector] Converting model to half precision (FP16) for faster inference...")
+                logger.debug("[AdaCLIPDetector] Converting model to half precision (FP16) for faster inference...")
                 self._adaclip_model = self._adaclip_model.half()
                 if hasattr(self._adaclip_model, "_clip_model") and self._adaclip_model._clip_model is not None:
                     self._adaclip_model._clip_model = self._adaclip_model._clip_model.half()
-                logger.info("[AdaCLIPDetector] ✅ Model converted to FP16")
+                logger.debug("[AdaCLIPDetector] ✅ Model converted to FP16")
             except Exception as e:
                 logger.warning(f"[AdaCLIPDetector] ⚠️  FP16 conversion failed: {e}, continuing with FP32")
                 self.use_half_precision = False
@@ -366,8 +366,8 @@ class AdaCLIPDetector(Node):
 
         b, h, w, _ = rgb_image.shape
         
-        # DEBUG: Log input tensor stats for debugging score differences
-        logger.debug(
+        # DEBUG: Log input tensor stats for debugging score differences (TRACE level - not shown by default)
+        logger.trace(
             f"[AdaCLIPDetector] Input: shape={rgb_image.shape}, "
             f"device={rgb_image.device}, dtype={rgb_image.dtype}, "
             f"min={rgb_image.min().item():.6f}, max={rgb_image.max().item():.6f}, "
@@ -379,13 +379,13 @@ class AdaCLIPDetector(Node):
         img_tensor = self._preprocess_rgb(rgb_image)
         preprocess_end = time.perf_counter()
         preprocess_time_ms = (preprocess_end - preprocess_start) * 1000.0
-        logger.info(
+        logger.debug(
             f"[AdaCLIPDetector] Preprocessing time: {preprocess_time_ms:.2f}ms "
             f"(method={'tensor' if self.use_torch_preprocess else 'PIL'})"
         )
         
-        # DEBUG: Log preprocessed tensor stats
-        logger.debug(
+        # DEBUG: Log preprocessed tensor stats (TRACE level - not shown by default)
+        logger.trace(
             f"[AdaCLIPDetector] Preprocessed: shape={img_tensor.shape}, "
             f"device={img_tensor.device}, dtype={img_tensor.dtype}, "
             f"min={img_tensor.min().item():.6f}, max={img_tensor.max().item():.6f}, "
@@ -398,7 +398,7 @@ class AdaCLIPDetector(Node):
 
         # Warmup runs (only once, on first forward pass)
         if self.enable_warmup and not self._warmup_done and torch.cuda.is_available():
-            logger.info("[AdaCLIPDetector]  Running warmup inference to optimize CUDA kernels...")
+            logger.debug("[AdaCLIPDetector]  Running warmup inference to optimize CUDA kernels...")
             try:
                 with torch.no_grad():
                     if self.use_half_precision:
@@ -416,7 +416,7 @@ class AdaCLIPDetector(Node):
                         )
                     torch.cuda.synchronize()
                 self._warmup_done = True
-                logger.info("[AdaCLIPDetector]  Warmup complete")
+                logger.debug("[AdaCLIPDetector]  Warmup complete")
             except Exception as e:
                 logger.warning(f"[AdaCLIPDetector]   Warmup failed: {e}, continuing without warmup")
 
@@ -451,18 +451,18 @@ class AdaCLIPDetector(Node):
         inference_end = time.perf_counter()
         inference_time_ms = (inference_end - inference_start) * 1000.0
         
-        logger.info(
+        logger.debug(
             f"[AdaCLIPDetector] Inference time: {inference_time_ms:.1f}ms "
             f"(batch_size={b}, per_image={inference_time_ms/b:.1f}ms)"
         )
         
-        # DEBUG: Log raw output stats before postprocessing
-        logger.debug(
+        # DEBUG: Log raw output stats before postprocessing (TRACE level - not shown by default)
+        logger.trace(
             f"[AdaCLIPDetector] Raw anomaly_map: shape={anomaly_map.shape}, "
             f"min={anomaly_map.min().item():.6f}, max={anomaly_map.max().item():.6f}, "
             f"mean={anomaly_map.mean().item():.6f}"
         )
-        logger.debug(
+        logger.trace(
             f"[AdaCLIPDetector] Raw anomaly_score: {anomaly_score.tolist()}"
         )
 
