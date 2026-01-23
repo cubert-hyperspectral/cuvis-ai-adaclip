@@ -10,44 +10,45 @@ It:
   * Adds a quantile-based decider, generic anomaly metrics, and visualizations.
   * Logs everything via TensorBoardMonitorNode and saves the pipeline + experiment config.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
 
-import torch
 import click
-from cuvis_ai_adaclip import (
-    AdaCLIPDetector,
-    download_weights,
-    list_available_weights,
-)
-from loguru import logger
-
-from cuvis_ai.data.lentils_anomaly import SingleCu3sDataModule
 from cuvis_ai.deciders.binary_decider import QuantileBinaryDecider
 from cuvis_ai.node.band_selection import SupervisedFullSpectrumBandSelector
 from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.visualizations import RGBAnomalyMask, ScoreHeatmapVisualizer
-from cuvis_ai.pipeline.pipeline import CuvisPipeline
-from cuvis_ai.training import StatisticalTrainer
-from cuvis_ai.training.config import (
+from cuvis_ai_core.data.datasets import SingleCu3sDataModule
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.training import StatisticalTrainer
+from cuvis_ai_core.training.config import (
     PipelineMetadata,
     TrainingConfig,
     TrainRunConfig,
 )
+from loguru import logger
 
+from cuvis_ai_adaclip import (
+    AdaCLIPDetector,
+    download_weights,
+    list_available_weights,
+)
 from cuvis_ai_adaclip.cli_utils import AdaCLIPCLI
 
 # Create reusable CLI instance
 cli = AdaCLIPCLI("AdaCLIP Supervised Full Spectrum")
 
+
 @cli.add_common_options
 @cli.add_data_options
+@cli.add_supervised_full_spectrum_options
 @cli.add_visualization_options
 @click.command()
-def main(**kwargs):
+def main(**kwargs) -> None:
     """Run AdaCLIP supervised full-spectrum (statistical) with Click CLI."""
     logger.info("=== AdaCLIP supervised full-spectrum (statistical) ===")
 
@@ -67,7 +68,7 @@ def main(**kwargs):
     logger.info("Number of spectral bands: {}", num_spectral_bands)
 
     model_name = kwargs["backbone_name"]
-    weight_name = kwargs["weight_name"]
+    weight_name = kwargs["pretrained_adaclip"]
     prompt_text = kwargs["prompt_text"]
     target_class_id = kwargs["target_class_id"]
 
@@ -81,16 +82,19 @@ def main(**kwargs):
     visualize_upto = kwargs["visualize_upto"]
     gaussian_sigma = kwargs["gaussian_sigma"]
 
-    # Supervised full-spectrum band selection (default values)
-    score_weights = (0.4, 0.3, 0.3)  # Fisher, AUC, MI weights
-    lambda_penalty = 0.1
+    # Supervised full-spectrum band selection from CLI options
+    score_weights = cli.parse_sup_score_weights(kwargs["sup_fs_score_weights"])
+    lambda_penalty = kwargs["sup_fs_lambda_penalty"]
 
     # Read optimization flags from config (default to optimized path)
     use_half_precision = kwargs.get("use_half_precision", False)
     enable_warmup = kwargs.get("enable_warmup", False)
 
     logger.info(
-        "Splits: train={}, val={}, test={}", data_config["train_ids"], data_config["val_ids"], data_config["test_ids"]
+        "Splits: train={}, val={}, test={}",
+        data_config["train_ids"],
+        data_config["val_ids"],
+        data_config["test_ids"],
     )
     logger.info("Model: {} | Weights: {}", model_name, weight_name)
     logger.info("Prompt: {}", prompt_text)
@@ -250,6 +254,7 @@ def main(**kwargs):
     logger.info(f"TrainRun config saved: {trainrun_output_path}")
     logger.info(f"TensorBoard logs: {monitor.output_dir}")
     logger.info(f"View logs: uv run tensorboard --logdir={output_dir}")
+
 
 if __name__ == "__main__":
     main()

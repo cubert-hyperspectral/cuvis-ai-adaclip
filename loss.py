@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from math import exp
 
+
 class FocalLoss(nn.Module):
     """
     copy from: https://github.com/Hsuxu/Loss_ToolBox-PyTorch/blob/master/FocalLoss/FocalLoss.py
@@ -18,7 +19,15 @@ class FocalLoss(nn.Module):
     :param size_average: (bool, optional) By default, the losses are averaged over each loss element in the batch.
     """
 
-    def __init__(self, apply_nonlin=None, alpha=None, gamma=2, balance_index=0, smooth=1e-5, size_average=True):
+    def __init__(
+        self,
+        apply_nonlin=None,
+        alpha=None,
+        gamma=2,
+        balance_index=0,
+        smooth=1e-5,
+        size_average=True,
+    ):
         super(FocalLoss, self).__init__()
         self.apply_nonlin = apply_nonlin
         self.alpha = alpha
@@ -29,7 +38,7 @@ class FocalLoss(nn.Module):
 
         if self.smooth is not None:
             if self.smooth < 0 or self.smooth > 1.0:
-                raise ValueError('smooth value should be in [0,1]')
+                raise ValueError("smooth value should be in [0,1]")
 
     def forward(self, logit, target):
         if self.apply_nonlin is not None:
@@ -57,7 +66,7 @@ class FocalLoss(nn.Module):
             alpha[self.balance_index] = self.alpha
 
         else:
-            raise TypeError('Not support alpha type')
+            raise TypeError("Not support alpha type")
 
         if alpha.device != logit.device:
             alpha = alpha.to(logit.device)
@@ -70,8 +79,7 @@ class FocalLoss(nn.Module):
             one_hot_key = one_hot_key.to(logit.device)
 
         if self.smooth:
-            one_hot_key = torch.clamp(
-                one_hot_key, self.smooth / (num_class - 1), 1.0 - self.smooth)
+            one_hot_key = torch.clamp(one_hot_key, self.smooth / (num_class - 1), 1.0 - self.smooth)
         pt = (one_hot_key * logit).sum(1) + self.smooth
         logpt = pt.log()
 
@@ -101,22 +109,24 @@ class BinaryDiceLoss(nn.Module):
 
         # 计算交集
         intersection = input_flat * targets_flat
-        N_dice_eff = (2 * intersection.sum(1) + smooth) / (input_flat.sum(1) + targets_flat.sum(1) + smooth)
+        N_dice_eff = (2 * intersection.sum(1) + smooth) / (
+            input_flat.sum(1) + targets_flat.sum(1) + smooth
+        )
         # 计算一个批次中平均每张图的损失
         loss = 1 - N_dice_eff.sum() / N
         return loss
 
 
-
-
 class ConADLoss(nn.Module):
     """Supervised Contrastive Learning: https://arxiv.org/pdf/2004.11362.pdf.
     It also supports the unsupervised contrastive loss in SimCLR"""
-    def __init__(self, contrast_mode='all',random_anchors=10):
+
+    def __init__(self, contrast_mode="all", random_anchors=10):
         super(ConADLoss, self).__init__()
-        assert contrast_mode in ['all', 'mean', 'random']
+        assert contrast_mode in ["all", "mean", "random"]
         self.contrast_mode = contrast_mode
         self.random_anchors = random_anchors
+
     def forward(self, features, labels):
         """Compute loss for model. If both `labels` and `mask` are None,
         it degenerates to SimCLR unsupervised loss:
@@ -128,15 +138,14 @@ class ConADLoss(nn.Module):
         Returns:
             A loss scalar.
         """
-        device = (torch.device('cuda')
-                  if features.is_cuda
-                  else torch.device('cpu'))
+        device = torch.device("cuda") if features.is_cuda else torch.device("cpu")
         if len(features.shape) != len(labels.shape):
-            raise ValueError('`features` needs to have the same dimensions with labels')
+            raise ValueError("`features` needs to have the same dimensions with labels")
 
         if len(features.shape) < 3:
-            raise ValueError('`features` needs to be [bsz, C, ...],'
-                             'at least 3 dimensions are required')
+            raise ValueError(
+                "`features` needs to be [bsz, C, ...],at least 3 dimensions are required"
+            )
 
         if len(features.shape) > 3:
             features = features.view(features.shape[0], features.shape[1], -1)
@@ -155,21 +164,23 @@ class ConADLoss(nn.Module):
         contrast_count = normal_feats.shape[1]
         contrast_feature = normal_feats
 
-        if self.contrast_mode == 'mean':
+        if self.contrast_mode == "mean":
             anchor_feature = torch.mean(normal_feats, dim=1)
             anchor_feature = F.normalize(anchor_feature, dim=0, p=2)
             anchor_count = 1
-        elif self.contrast_mode == 'all':
+        elif self.contrast_mode == "all":
             anchor_feature = contrast_feature
             anchor_count = contrast_count
-        elif self.contrast_mode == 'random':
+        elif self.contrast_mode == "random":
             dim_to_sample = 1
             num_samples = min(self.random_anchors, contrast_count)
-            permuted_indices = torch.randperm(normal_feats.size(dim_to_sample)).to(normal_feats.device)
+            permuted_indices = torch.randperm(normal_feats.size(dim_to_sample)).to(
+                normal_feats.device
+            )
             selected_indices = permuted_indices[:num_samples]
             anchor_feature = normal_feats.index_select(dim_to_sample, selected_indices)
         else:
-            raise ValueError('Unknown mode: {}'.format(self.contrast_mode))
+            raise ValueError("Unknown mode: {}".format(self.contrast_mode))
 
         # compute logits
         # maximize similarity

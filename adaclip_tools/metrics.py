@@ -58,13 +58,13 @@ def calculate_metric(results, obj):
     gt_im = []
     pr_im = []
 
-    for idx in range(len(results['cls_names'])):
-        if results['cls_names'][idx] == obj:
-            gt_px.append(results['imgs_masks'][idx])
-            pr_px.append(results['anomaly_maps'][idx])
+    for idx in range(len(results["cls_names"])):
+        if results["cls_names"][idx] == obj:
+            gt_px.append(results["imgs_masks"][idx])
+            pr_px.append(results["anomaly_maps"][idx])
 
-            gt_im.append(results['imgs_gts'][idx])
-            pr_im.append(results['anomaly_scores'][idx])
+            gt_im.append(results["imgs_gts"][idx])
+            pr_im.append(results["anomaly_scores"][idx])
 
     gt_px = np.array(gt_px)
     pr_px = np.array(pr_px)
@@ -76,12 +76,12 @@ def calculate_metric(results, obj):
     ap_im, auroc_im, f1_im = calculate_im_metrics(gt_im, pr_im)
 
     metric = {
-        'auroc_px': auroc_px,
-        'auroc_im': auroc_im,
-        'f1_px': f1_px,
-        'f1_im': f1_im,
-        'ap_px': ap_px,
-        'ap_im': ap_im,
+        "auroc_px": auroc_px,
+        "auroc_im": auroc_im,
+        "f1_px": f1_px,
+        "f1_im": f1_im,
+        "ap_px": ap_px,
+        "ap_im": ap_im,
     }
 
     return metric

@@ -10,44 +10,45 @@ It:
   * Adds a quantile-based decider, generic anomaly metrics, and visualizations.
   * Logs everything via TensorBoardMonitorNode and saves the pipeline + experiment config.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
 
-import torch
 import click
-from cuvis_ai_adaclip import (
-    AdaCLIPDetector,
-    download_weights,
-    list_available_weights,
-)
-from loguru import logger
-
-from cuvis_ai.data.lentils_anomaly import SingleCu3sDataModule
 from cuvis_ai.deciders.binary_decider import QuantileBinaryDecider
 from cuvis_ai.node.band_selection import HighContrastBandSelector
 from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.visualizations import RGBAnomalyMask, ScoreHeatmapVisualizer
-from cuvis_ai.pipeline.pipeline import CuvisPipeline
-from cuvis_ai.training import StatisticalTrainer
-from cuvis_ai.training.config import (
+from cuvis_ai_core.data.datasets import SingleCu3sDataModule
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.training import StatisticalTrainer
+from cuvis_ai_core.training.config import (
     PipelineMetadata,
     TrainingConfig,
     TrainRunConfig,
 )
+from loguru import logger
 
+from cuvis_ai_adaclip import (
+    AdaCLIPDetector,
+    download_weights,
+    list_available_weights,
+)
 from cuvis_ai_adaclip.cli_utils import AdaCLIPCLI
 
 # Create reusable CLI instance
 cli = AdaCLIPCLI("AdaCLIP High Contrast")
 
+
 @cli.add_common_options
 @cli.add_data_options
+@cli.add_high_contrast_options
 @cli.add_visualization_options
 @click.command()
-def main(**kwargs):
+def main(**kwargs) -> None:
     """Run AdaCLIP high-contrast (statistical) with Click CLI."""
     logger.info("=== AdaCLIP high-contrast (statistical) ===")
 
@@ -65,7 +66,7 @@ def main(**kwargs):
     logger.info("Wavelength range: {:.1f}-{:.1f} nm", wavelengths.min(), wavelengths.max())
 
     model_name = kwargs["backbone_name"]
-    weight_name = kwargs["weight_name"]
+    weight_name = kwargs["pretrained_adaclip"]
     prompt_text = kwargs["prompt_text"]
     target_class_id = kwargs["target_class_id"]
 
@@ -79,16 +80,19 @@ def main(**kwargs):
     visualize_upto = kwargs["visualize_upto"]
     gaussian_sigma = kwargs["gaussian_sigma"]
 
-    # High-contrast band selection parameters (default values)
-    windows = ((400.0, 500.0), (500.0, 600.0), (600.0, 700.0), (700.0, 800.0), (800.0, 900.0), (900.0, 1000.0))
-    alpha = 0.5
+    # High-contrast band selection parameters from CLI options
+    windows = cli.parse_hc_windows(kwargs["hc_windows"])
+    alpha = kwargs["hc_alpha"]
 
     # Read optimization flags from config (default to False for non-optimized comparison)
     use_half_precision = kwargs.get("use_half_precision", False)
     enable_warmup = kwargs.get("enable_warmup", False)
 
     logger.info(
-        "Splits: train={}, val={}, test={}", data_config["train_ids"], data_config["val_ids"], data_config["test_ids"]
+        "Splits: train={}, val={}, test={}",
+        data_config["train_ids"],
+        data_config["val_ids"],
+        data_config["test_ids"],
     )
     logger.info("Model: {} | Weights: {}", model_name, weight_name)
     logger.info("Prompt: {}", prompt_text)
@@ -240,6 +244,7 @@ def main(**kwargs):
     logger.info(f"TrainRun config saved: {trainrun_output_path}")
     logger.info(f"TensorBoard logs: {monitor.output_dir}")
     logger.info(f"View logs: uv run tensorboard --logdir={output_dir}")
+
 
 if __name__ == "__main__":
     main()

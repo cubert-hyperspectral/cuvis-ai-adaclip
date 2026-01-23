@@ -1,7 +1,8 @@
-""" CLIP Model
+"""CLIP Model
 
 Adapted from https://github.com/openai/CLIP. Originally MIT License, Copyright (c) 2021 OpenAI.
 """
+
 from dataclasses import dataclass
 import logging
 import math
@@ -11,8 +12,16 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import nn
-from .transformer import LayerNormFp32, LayerNorm, QuickGELU, Attention, VisionTransformer, TextTransformer
+from .transformer import (
+    LayerNormFp32,
+    LayerNorm,
+    QuickGELU,
+    Attention,
+    VisionTransformer,
+    TextTransformer,
+)
 from .utils import to_2tuple
+
 
 @dataclass
 class CLIPVisionCfg:
@@ -23,18 +32,18 @@ class CLIPVisionCfg:
     patch_size: int = 16
     image_size: Union[Tuple[int, int], int] = 224
     ls_init_value: Optional[float] = None  # layer scale initial value
-    patch_dropout: float = 0.  # what fraction of patches to dropout during training (0 would mean disabled and no patches dropped) - 0.5 to 0.75 recommended in the paper for optimal results
-    input_patchnorm: bool = False # whether to use dual patchnorm - would only apply the input layernorm on each patch, as post-layernorm already exist in original clip vit design
+    patch_dropout: float = 0.0  # what fraction of patches to dropout during training (0 would mean disabled and no patches dropped) - 0.5 to 0.75 recommended in the paper for optimal results
+    input_patchnorm: bool = False  # whether to use dual patchnorm - would only apply the input layernorm on each patch, as post-layernorm already exist in original clip vit design
     global_average_pool: bool = False  # whether to global average pool the last embedding layer, instead of using CLS token (https://arxiv.org/abs/2205.01580)
-    attentional_pool: bool = False # whether to use attentional pooler in the last embedding layer
-    n_queries: int = 256 # n_queries for attentional pooler
-    attn_pooler_heads: int = 8 # n heads for attentional_pooling
+    attentional_pool: bool = False  # whether to use attentional pooler in the last embedding layer
+    n_queries: int = 256  # n_queries for attentional pooler
+    attn_pooler_heads: int = 8  # n heads for attentional_pooling
     timm_model_name: str = None  # a valid model name overrides layers, width, patch_size
     timm_model_pretrained: bool = False  # use (imagenet) pretrained weights for named model
-    timm_pool: str = 'avg'  # feature pooling for timm model ('abs_attn', 'rot_attn', 'avg', '')
-    timm_proj: str = 'linear'  # linear projection for timm model output ('linear', 'mlp', '')
+    timm_pool: str = "avg"  # feature pooling for timm model ('abs_attn', 'rot_attn', 'avg', '')
+    timm_proj: str = "linear"  # linear projection for timm model output ('linear', 'mlp', '')
     timm_proj_bias: bool = False  # enable bias final projection
-    timm_drop: float = 0.  # head dropout
+    timm_drop: float = 0.0  # head dropout
     timm_drop_path: Optional[float] = None  # backbone stochastic depth
     output_tokens: bool = False
 
@@ -50,8 +59,8 @@ class CLIPTextCfg:
     hf_model_name: str = None
     hf_tokenizer_name: str = None
     hf_model_pretrained: bool = True
-    proj: str = 'mlp'
-    pooler_type: str = 'mean_pooler'
+    proj: str = "mlp"
+    pooler_type: str = "mean_pooler"
     embed_cls: bool = False
     pad_id: int = 0
     output_tokens: bool = False
@@ -59,18 +68,18 @@ class CLIPTextCfg:
 
 def get_cast_dtype(precision: str):
     cast_dtype = None
-    if precision == 'bf16':
+    if precision == "bf16":
         cast_dtype = torch.bfloat16
-    elif precision == 'fp16':
+    elif precision == "fp16":
         cast_dtype = torch.float16
     return cast_dtype
 
 
 def _build_vision_tower(
-        embed_dim: int,
-        vision_cfg: CLIPVisionCfg,
-        quick_gelu: bool = False,
-        cast_dtype: Optional[torch.dtype] = None,
+    embed_dim: int,
+    vision_cfg: CLIPVisionCfg,
+    quick_gelu: bool = False,
+    cast_dtype: Optional[torch.dtype] = None,
 ):
     if isinstance(vision_cfg, dict):
         vision_cfg = CLIPVisionCfg(**vision_cfg)
@@ -99,17 +108,17 @@ def _build_vision_tower(
         output_tokens=vision_cfg.output_tokens,
         output_dim=embed_dim,
         act_layer=act_layer,
-        norm_layer=norm_layer
+        norm_layer=norm_layer,
     )
 
     return visual
 
 
 def _build_text_tower(
-        embed_dim: int,
-        text_cfg: CLIPTextCfg,
-        quick_gelu: bool = False,
-        cast_dtype: Optional[torch.dtype] = None,
+    embed_dim: int,
+    text_cfg: CLIPTextCfg,
+    quick_gelu: bool = False,
+    cast_dtype: Optional[torch.dtype] = None,
 ):
     if isinstance(text_cfg, dict):
         text_cfg = CLIPTextCfg(**text_cfg)
@@ -129,7 +138,7 @@ def _build_text_tower(
         output_tokens=text_cfg.output_tokens,
         pad_id=text_cfg.pad_id,
         act_layer=act_layer,
-        norm_layer=norm_layer
+        norm_layer=norm_layer,
     )
 
     return text
@@ -139,13 +148,13 @@ class CLIP(nn.Module):
     output_dict: torch.jit.Final[bool]
 
     def __init__(
-            self,
-            embed_dim: int,
-            vision_cfg: CLIPVisionCfg,
-            text_cfg: CLIPTextCfg,
-            quick_gelu: bool = False,
-            cast_dtype: Optional[torch.dtype] = None,
-            output_dict: bool = False,
+        self,
+        embed_dim: int,
+        vision_cfg: CLIPVisionCfg,
+        text_cfg: CLIPTextCfg,
+        quick_gelu: bool = False,
+        cast_dtype: Optional[torch.dtype] = None,
+        output_dict: bool = False,
     ):
         super().__init__()
         self.output_dict = output_dict
@@ -157,10 +166,9 @@ class CLIP(nn.Module):
         self.positional_embedding = text.positional_embedding
         self.ln_final = text.ln_final
         self.text_projection = text.text_projection
-        self.register_buffer('attn_mask', text.attn_mask, persistent=False)
+        self.register_buffer("attn_mask", text.attn_mask, persistent=False)
 
         self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
-
 
     def lock_image_tower(self, unlocked_groups=0, freeze_bn_stats=False):
         # lock image tower as per LiT - https://arxiv.org/abs/2111.07991
@@ -172,16 +180,18 @@ class CLIP(nn.Module):
         self.transformer.grad_checkpointing = enable
 
     def encode_image(self, image, out_layers):
-
         x = image
         # to patches - whether to use dual patchnorm - https://arxiv.org/abs/2302.01327v1
         if self.visual.input_patchnorm:
             # einops - rearrange(x, 'b c (h p1) (w p2) -> b (h w) (c p1 p2)')
-            x = x.reshape(x.shape[0], x.shape[1],
-                          self.visual.grid_size[0],
-                          self.visual.patch_size[0],
-                          self.visual.grid_size[1],
-                          self.visual.patch_size[1])
+            x = x.reshape(
+                x.shape[0],
+                x.shape[1],
+                self.visual.grid_size[0],
+                self.visual.patch_size[0],
+                self.visual.grid_size[1],
+                self.visual.patch_size[1],
+            )
             x = x.permute(0, 2, 4, 1, 3, 5)
             x = x.reshape(x.shape[0], self.visual.grid_size[0] * self.visual.grid_size[1], -1)
             x = self.visual.patchnorm_pre_ln(x)
@@ -191,12 +201,15 @@ class CLIP(nn.Module):
             x = x.reshape(x.shape[0], x.shape[1], -1)  # shape = [*, width, grid ** 2]
             x = x.permute(0, 2, 1)  # shape = [*, grid ** 2, width]
 
-
         # class embeddings and positional embeddings
         x = torch.cat(
-            [self.visual.class_embedding.to(x.dtype) +
-             torch.zeros(x.shape[0], 1, x.shape[-1], dtype=x.dtype, device=x.device),
-             x], dim=1)  # shape = [*, grid ** 2 + 1, width]
+            [
+                self.visual.class_embedding.to(x.dtype)
+                + torch.zeros(x.shape[0], 1, x.shape[-1], dtype=x.dtype, device=x.device),
+                x,
+            ],
+            dim=1,
+        )  # shape = [*, grid ** 2 + 1, width]
 
         x = x + self.visual.positional_embedding.to(x.dtype)
 
@@ -217,7 +230,9 @@ class CLIP(nn.Module):
                 patch_tokens.append(x)
 
         x = x.permute(1, 0, 2)  # LND -> NLD
-        patch_tokens = [patch_tokens[t].permute(1, 0, 2) for t in range(len(patch_tokens))]  # LND -> NLD
+        patch_tokens = [
+            patch_tokens[t].permute(1, 0, 2) for t in range(len(patch_tokens))
+        ]  # LND -> NLD
 
         if self.visual.attn_pool is not None:
             x = self.visual.attn_pool(x)
@@ -256,7 +271,6 @@ class CLIP(nn.Module):
         return x
 
 
-
 def convert_weights_to_lp(model: nn.Module, dtype=torch.float16):
     """Convert applicable model parameters to low-precision (bf16 or fp16)"""
 
@@ -267,7 +281,12 @@ def convert_weights_to_lp(model: nn.Module, dtype=torch.float16):
                 l.bias.data = l.bias.data.to(dtype)
 
         if isinstance(l, (nn.MultiheadAttention, Attention)):
-            for attr in [*[f"{s}_proj_weight" for s in ["in", "q", "k", "v"]], "in_proj_bias", "bias_k", "bias_v"]:
+            for attr in [
+                *[f"{s}_proj_weight" for s in ["in", "q", "k", "v"]],
+                "in_proj_bias",
+                "bias_k",
+                "bias_v",
+            ]:
                 tensor = getattr(l, attr)
                 if tensor is not None:
                     tensor.data = tensor.data.to(dtype)
@@ -286,45 +305,57 @@ convert_weights_to_fp16 = convert_weights_to_lp  # backwards compat
 
 # used to maintain checkpoint compatibility
 def convert_to_custom_text_state_dict(state_dict: dict):
-    if 'text_projection' in state_dict:
+    if "text_projection" in state_dict:
         # old format state_dict, move text tower -> .text
         new_state_dict = {}
         for k, v in state_dict.items():
-            if any(k.startswith(p) for p in (
-                'text_projection',
-                'positional_embedding',
-                'token_embedding',
-                'transformer',
-                'ln_final',
-            )):
-                k = 'text.' + k
+            if any(
+                k.startswith(p)
+                for p in (
+                    "text_projection",
+                    "positional_embedding",
+                    "token_embedding",
+                    "transformer",
+                    "ln_final",
+                )
+            ):
+                k = "text." + k
             new_state_dict[k] = v
         return new_state_dict
     return state_dict
 
 
 def build_model_from_openai_state_dict(
-        state_dict: dict,
-        quick_gelu=True,
-        cast_dtype=torch.float16,
+    state_dict: dict,
+    quick_gelu=True,
+    cast_dtype=torch.float16,
 ):
     vit = "visual.proj" in state_dict
 
     if vit:
         vision_width = state_dict["visual.conv1.weight"].shape[0]
         vision_layers = len(
-            [k for k in state_dict.keys() if k.startswith("visual.") and k.endswith(".attn.in_proj_weight")])
+            [
+                k
+                for k in state_dict.keys()
+                if k.startswith("visual.") and k.endswith(".attn.in_proj_weight")
+            ]
+        )
         vision_patch_size = state_dict["visual.conv1.weight"].shape[-1]
         grid_size = round((state_dict["visual.positional_embedding"].shape[0] - 1) ** 0.5)
         image_size = vision_patch_size * grid_size
     else:
         counts: list = [
-            len(set(k.split(".")[2] for k in state_dict if k.startswith(f"visual.layer{b}"))) for b in [1, 2, 3, 4]]
+            len(set(k.split(".")[2] for k in state_dict if k.startswith(f"visual.layer{b}")))
+            for b in [1, 2, 3, 4]
+        ]
         vision_layers = tuple(counts)
         vision_width = state_dict["visual.layer1.0.conv1.weight"].shape[0]
-        output_width = round((state_dict["visual.attnpool.positional_embedding"].shape[0] - 1) ** 0.5)
+        output_width = round(
+            (state_dict["visual.attnpool.positional_embedding"].shape[0] - 1) ** 0.5
+        )
         vision_patch_size = None
-        assert output_width ** 2 + 1 == state_dict["visual.attnpool.positional_embedding"].shape[0]
+        assert output_width**2 + 1 == state_dict["visual.attnpool.positional_embedding"].shape[0]
         image_size = output_width * 32
 
     embed_dim = state_dict["text_projection"].shape[1]
@@ -332,7 +363,9 @@ def build_model_from_openai_state_dict(
     vocab_size = state_dict["token_embedding.weight"].shape[0]
     transformer_width = state_dict["ln_final.weight"].shape[0]
     transformer_heads = transformer_width // 64
-    transformer_layers = len(set(k.split(".")[2] for k in state_dict if k.startswith(f"transformer.resblocks")))
+    transformer_layers = len(
+        set(k.split(".")[2] for k in state_dict if k.startswith(f"transformer.resblocks"))
+    )
 
     vision_cfg = CLIPVisionCfg(
         layers=vision_layers,
@@ -363,7 +396,7 @@ def build_model_from_openai_state_dict(
     return model.eval()
 
 
-def trace_model(model, batch_size=256, device=torch.device('cpu')):
+def trace_model(model, batch_size=256, device=torch.device("cpu")):
     model.eval()
     image_size = model.visual.image_size
     example_images = torch.ones((batch_size, 3, image_size, image_size), device=device)
@@ -373,16 +406,17 @@ def trace_model(model, batch_size=256, device=torch.device('cpu')):
         inputs=dict(
             forward=(example_images, example_text),
             encode_text=(example_text,),
-            encode_image=(example_images,)
-        ))
+            encode_image=(example_images,),
+        ),
+    )
     model.visual.image_size = image_size
     return model
 
 
-def resize_pos_embed(state_dict, model, interpolation: str = 'bicubic'):
+def resize_pos_embed(state_dict, model, interpolation: str = "bicubic"):
     # Rescale the grid of position embeddings when loading from state_dict
-    old_pos_embed = state_dict.get('visual.positional_embedding', None)
-    if old_pos_embed is None or not hasattr(model.visual, 'grid_size'):
+    old_pos_embed = state_dict.get("visual.positional_embedding", None)
+    if old_pos_embed is None or not hasattr(model.visual, "grid_size"):
         return
     grid_size = to_2tuple(model.visual.grid_size)
     extra_tokens = 1  # FIXME detect different token configs (ie no class token, or more)
@@ -396,7 +430,7 @@ def resize_pos_embed(state_dict, model, interpolation: str = 'bicubic'):
         pos_emb_tok, pos_emb_img = None, old_pos_embed
     old_grid_size = to_2tuple(int(math.sqrt(len(pos_emb_img))))
 
-    logging.info('Resizing position embedding grid-size from %s to %s', old_grid_size, grid_size)
+    logging.info("Resizing position embedding grid-size from %s to %s", old_grid_size, grid_size)
     pos_emb_img = pos_emb_img.reshape(1, old_grid_size[0], old_grid_size[1], -1).permute(0, 3, 1, 2)
     pos_emb_img = F.interpolate(
         pos_emb_img,
@@ -409,4 +443,4 @@ def resize_pos_embed(state_dict, model, interpolation: str = 'bicubic'):
         new_pos_embed = torch.cat([pos_emb_tok, pos_emb_img], dim=0)
     else:
         new_pos_embed = pos_emb_img
-    state_dict['visual.positional_embedding'] = new_pos_embed
+    state_dict["visual.positional_embedding"] = new_pos_embed

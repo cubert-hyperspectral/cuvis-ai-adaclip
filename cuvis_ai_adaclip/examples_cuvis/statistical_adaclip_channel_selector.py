@@ -20,22 +20,18 @@ We log:
   - RX-based anomaly detection metrics (optional comparison)
   - RGB + anomaly masks/overlays via TensorBoard
 """
+
 from __future__ import annotations
 
 import sys
 from pathlib import Path
 
-import torch
 import click
+import torch
 from cuvis_ai.anomaly.rx_detector import RXGlobal
 from cuvis_ai.anomaly.rx_logit_head import RXLogitHead
-from cuvis_ai.data.lentils_anomaly import SingleCu3sDataModule
-from cuvis_ai.deciders.binary_decider import BinaryDecider
-from cuvis_ai.deciders.binary_decider import QuantileBinaryDecider
-from cuvis_ai.node import Node
+from cuvis_ai.deciders.binary_decider import BinaryDecider, QuantileBinaryDecider
 from cuvis_ai.node.data import LentilsAnomalyDataNode
-from cuvis_ai.pipeline.ports import PortSpec
-from cuvis_ai.utils.types import Context
 from cuvis_ai.node.losses import (
     AnomalyBCEWithLogits,
     SelectorDiversityRegularizer,
@@ -45,9 +41,12 @@ from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.selector import SoftChannelSelector
 from cuvis_ai.node.visualizations import RGBAnomalyMask, ScoreHeatmapVisualizer
-from cuvis_ai.pipeline.canvas import CuvisCanvas
-from cuvis_ai.training import GradientTrainer, StatisticalTrainer
-from cuvis_ai.training.config import (
+from cuvis_ai_core.data.datasets import SingleCu3sDataModule
+from cuvis_ai_core.node import Node
+from cuvis_ai_core.pipeline.canvas import CuvisCanvas
+from cuvis_ai_core.pipeline.ports import PortSpec
+from cuvis_ai_core.training import GradientTrainer, StatisticalTrainer
+from cuvis_ai_core.training.config import (
     CallbacksConfig,
     EarlyStoppingConfig,
     LearningRateMonitorConfig,
@@ -57,6 +56,7 @@ from cuvis_ai.training.config import (
     TrainerConfig,
     TrainingConfig,
 )
+from cuvis_ai_core.utils.types import Context
 from loguru import logger
 
 from cuvis_ai_adaclip import (
@@ -88,6 +88,7 @@ DEFAULT_QUANTILE = 0.995
 
 # Create reusable CLI instance
 cli = AdaCLIPCLI("AdaCLIP Channel Selector")
+
 
 class NormalizeRGBNode(Node):
     """Per-image, per-channel min-max normalization for RGB [B, H, W, 3].
@@ -150,11 +151,12 @@ class NormalizeRGBNode(Node):
 
         return {"rgb_out": rgb}
 
+
 @cli.add_common_options
 @cli.add_data_options
 @cli.add_visualization_options
 @click.command()
-def main(**kwargs):
+def main(**kwargs) -> None:
     """Main training function with AdaCLIP + SoftChannelSelector."""
     # Parse configuration using CLI utilities
     data_root = Path(kwargs.get("cu3s_file_path", "data/Lentils/Lentils_000.cu3s")).parent
@@ -162,19 +164,24 @@ def main(**kwargs):
     data_config = cli.parse_data_config(**kwargs)
 
     model_name = kwargs["backbone_name"]
-    weight_name = kwargs["weight_name"]
+    weight_name = kwargs["pretrained_adaclip"]
     prompt_text = kwargs["prompt_text"]
     experiment_name = DEFAULT_EXPERIMENT_NAME
     monitor_root = output_dir / ".." / "tensorboard"
 
-    mask_channel = DEFAULT_MASK_CHANNEL
     quantile = kwargs["quantile"]
     gaussian_sigma = kwargs["gaussian_sigma"]
     visualize_upto = kwargs["visualize_upto"]
 
-    logger.info("=== AdaCLIP + SoftChannelSelector example (plugin) ===")
+    logger.info("Run: AdaCLIP + SoftChannelSelector (plugin)")
+    logger.info("Output: {}", output_dir)
     logger.info("Data root: {}", data_root)
-    logger.info("Splits: train={}, val={}, test={}", data_config["train_ids"], data_config["val_ids"], data_config["test_ids"])
+    logger.info(
+        "Splits: train={}, val={}, test={}",
+        data_config["train_ids"],
+        data_config["val_ids"],
+        data_config["test_ids"],
+    )
     logger.info("Model: {} | Weights: {}", model_name, weight_name)
     logger.info("Prompt: {}", prompt_text)
 
@@ -195,22 +202,17 @@ def main(**kwargs):
 
     wavelengths = datamodule.train_ds.wavelengths
 
-    logger.info("Dataset wavelengths: {}", wavelengths.shape)
-    logger.info(
-        "Wavelength range: {:.1f} - {:.1f} nm",
-        wavelengths.min(),
-        wavelengths.max(),
-    )
+    num_spectral_bands = len(wavelengths)
+    logger.info("Wavelengths: {:.1f}-{:.1f} nm", wavelengths.min(), wavelengths.max())
+    logger.info("Spectral bands: {}", num_spectral_bands)
 
-    logger.info("Available AdaCLIP weights (plugin): {}", list_available_weights())
+    logger.info("Available weights: {}", list_available_weights())
     download_weights(weight_name)
 
     # ----------------------------
     # Build computation graph
     # ----------------------------
-    canvas_name = (
-        f"{experiment_name}_{model_name}_{Path(weight_name).stem}".replace("-", "_")
-    )
+    canvas_name = f"{experiment_name}_{model_name}_{Path(weight_name).stem}".replace("-", "_")
     canvas = CuvisCanvas(canvas_name)
 
     data_node = LentilsAnomalyDataNode(
@@ -344,21 +346,21 @@ def main(**kwargs):
     # ----------------------------
     # Phase 1: Statistical initialization
     # ----------------------------
-    logger.info("Phase 1: Statistical initialization of selector...")
+    logger.info("Phase 1: selector init (statistical)")
     stat_trainer = StatisticalTrainer(canvas=canvas, datamodule=datamodule)
     stat_trainer.fit()
 
     # ----------------------------
     # Freeze AdaCLIP and unfreeze selector
     # ----------------------------
-    logger.info("Freezing AdaCLIP (no gradients) and unfreezing selector for gradient training...")
+    logger.info("Freeze: AdaCLIP; unfreeze selector")
     adaclip.freeze()  # Ensure AdaCLIP stays frozen
     selector.unfreeze()  # Only selector gets gradients
 
     # ----------------------------
     # Phase 2: Gradient training
     # ----------------------------
-    logger.info("Phase 2: Gradient training of SoftChannelSelector based on AdaCLIP outputs...")
+    logger.info("Phase 2: selector training (gradient)")
 
     training_cfg = TrainingConfig(
         seed=42,
@@ -410,23 +412,17 @@ def main(**kwargs):
     )
     grad_trainer.fit()
 
-    logger.info("Running validation evaluation with best checkpoint...")
+    logger.info("Validate: best checkpoint")
     val_results = grad_trainer.validate()
-    logger.info("Validation results: {}", val_results)
+    logger.info("Validate results: {}", val_results)
 
-    logger.info("Running test evaluation with best checkpoint...")
+    logger.info("Test: best checkpoint")
     test_results = grad_trainer.test()
     logger.info("Test results: {}", test_results)
+    logger.info("Checkpoints: ./outputs/adaclip_channel_selector_checkpoints")
+    logger.info("TensorBoard: {}", tensorboard_node.output_dir)
+    logger.info("TensorBoard cmd: uv run tensorboard --logdir={}", tensorboard_node.output_dir)
 
-    logger.info("=== Training Complete ===")
-    logger.info(
-        "Checkpoints saved to: ./outputs/adaclip_channel_selector_checkpoints",
-    )
-    logger.info(f"TensorBoard logs: {tensorboard_node.output_dir}")
-    logger.info(
-        "View logs: uv run tensorboard "
-        f"--logdir={tensorboard_node.output_dir}",
-    )
 
 if __name__ == "__main__":
     main()

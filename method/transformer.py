@@ -16,7 +16,9 @@ class LayerNormFp32(nn.LayerNorm):
 
     def forward(self, x: torch.Tensor):
         orig_type = x.dtype
-        x = F.layer_norm(x.to(torch.float32), self.normalized_shape, self.weight, self.bias, self.eps)
+        x = F.layer_norm(
+            x.to(torch.float32), self.normalized_shape, self.weight, self.bias, self.eps
+        )
         return x.to(orig_type)
 
 
@@ -52,12 +54,12 @@ class PatchDropout(nn.Module):
 
     def __init__(self, prob, exclude_first_token=True):
         super().__init__()
-        assert 0 <= prob < 1.
+        assert 0 <= prob < 1.0
         self.prob = prob
         self.exclude_first_token = exclude_first_token  # exclude CLS token
 
     def forward(self, x):
-        if not self.training or self.prob == 0.:
+        if not self.training or self.prob == 0.0:
             return x
 
         if self.exclude_first_token:
@@ -87,23 +89,23 @@ class PatchDropout(nn.Module):
 
 class Attention(nn.Module):
     def __init__(
-            self,
-            dim,
-            num_heads=8,
-            qkv_bias=True,
-            scaled_cosine=False,
-            scale_heads=False,
-            logit_scale_max=math.log(1. / 0.01),
-            attn_drop=0.,
-            proj_drop=0.
+        self,
+        dim,
+        num_heads=8,
+        qkv_bias=True,
+        scaled_cosine=False,
+        scale_heads=False,
+        logit_scale_max=math.log(1.0 / 0.01),
+        attn_drop=0.0,
+        proj_drop=0.0,
     ):
         super().__init__()
         self.scaled_cosine = scaled_cosine
         self.scale_heads = scale_heads
-        assert dim % num_heads == 0, 'dim should be divisible by num_heads'
+        assert dim % num_heads == 0, "dim should be divisible by num_heads"
         self.num_heads = num_heads
         self.head_dim = dim // num_heads
-        self.scale = self.head_dim ** -0.5
+        self.scale = self.head_dim**-0.5
         self.logit_scale_max = logit_scale_max
 
         # keeping in_proj in this form (instead of nn.Linear) to match weight scheme of original
@@ -163,12 +165,12 @@ class Attention(nn.Module):
 
 class AttentionalPooler(nn.Module):
     def __init__(
-            self,
-            d_model: int,
-            context_dim: int,
-            n_head: int = 8,
-            n_queries: int = 256,
-            norm_layer: Callable = LayerNorm
+        self,
+        d_model: int,
+        context_dim: int,
+        n_head: int = 8,
+        n_queries: int = 256,
+        norm_layer: Callable = LayerNorm,
     ):
         super().__init__()
         self.query = nn.Parameter(torch.randn(n_queries, d_model))
@@ -189,15 +191,15 @@ class AttentionalPooler(nn.Module):
 
 class ResidualAttentionBlock(nn.Module):
     def __init__(
-            self,
-            d_model: int,
-            n_head: int,
-            mlp_ratio: float = 4.0,
-            ls_init_value: float = None,
-            act_layer: Callable = nn.GELU,
-            norm_layer: Callable = LayerNorm,
-            is_cross_attention: bool = False,
-            idx: int = 12,
+        self,
+        d_model: int,
+        n_head: int,
+        mlp_ratio: float = 4.0,
+        ls_init_value: float = None,
+        act_layer: Callable = nn.GELU,
+        norm_layer: Callable = LayerNorm,
+        is_cross_attention: bool = False,
+        idx: int = 12,
     ):
         super().__init__()
 
@@ -205,40 +207,46 @@ class ResidualAttentionBlock(nn.Module):
 
         self.ln_1 = norm_layer(d_model)
         self.attn = nn.MultiheadAttention(d_model, n_head)
-        self.ls_1 = LayerScale(d_model, ls_init_value) if ls_init_value is not None else nn.Identity()
+        self.ls_1 = (
+            LayerScale(d_model, ls_init_value) if ls_init_value is not None else nn.Identity()
+        )
         if is_cross_attention:
             self.ln_1_kv = norm_layer(d_model)
 
         self.ln_2 = norm_layer(d_model)
         mlp_width = int(d_model * mlp_ratio)
-        self.mlp = nn.Sequential(OrderedDict([
-            ("c_fc", nn.Linear(d_model, mlp_width)),
-            ("gelu", act_layer()),
-            ("c_proj", nn.Linear(mlp_width, d_model))
-        ]))
-        self.ls_2 = LayerScale(d_model, ls_init_value) if ls_init_value is not None else nn.Identity()
+        self.mlp = nn.Sequential(
+            OrderedDict(
+                [
+                    ("c_fc", nn.Linear(d_model, mlp_width)),
+                    ("gelu", act_layer()),
+                    ("c_proj", nn.Linear(mlp_width, d_model)),
+                ]
+            )
+        )
+        self.ls_2 = (
+            LayerScale(d_model, ls_init_value) if ls_init_value is not None else nn.Identity()
+        )
 
     def attention(
-            self,
-            q_x: torch.Tensor,
-            k_x: Optional[torch.Tensor] = None,
-            v_x: Optional[torch.Tensor] = None,
-            attn_mask: Optional[torch.Tensor] = None,
+        self,
+        q_x: torch.Tensor,
+        k_x: Optional[torch.Tensor] = None,
+        v_x: Optional[torch.Tensor] = None,
+        attn_mask: Optional[torch.Tensor] = None,
     ):
         k_x = k_x if k_x is not None else q_x
         v_x = v_x if v_x is not None else q_x
 
         attn_mask = attn_mask.to(q_x.dtype) if attn_mask is not None else None
-        return self.attn(
-            q_x, k_x, v_x, need_weights=True, attn_mask=attn_mask
-        )
+        return self.attn(q_x, k_x, v_x, need_weights=True, attn_mask=attn_mask)
 
     def forward(
-            self,
-            q_x: torch.Tensor,
-            k_x: Optional[torch.Tensor] = None,
-            v_x: Optional[torch.Tensor] = None,
-            attn_mask: Optional[torch.Tensor] = None,
+        self,
+        q_x: torch.Tensor,
+        k_x: Optional[torch.Tensor] = None,
+        v_x: Optional[torch.Tensor] = None,
+        attn_mask: Optional[torch.Tensor] = None,
     ):
         k_x = self.ln_1_kv(k_x) if hasattr(self, "ln_1_kv") and k_x is not None else None
         v_x = self.ln_1_kv(v_x) if hasattr(self, "ln_1_kv") and v_x is not None else None
@@ -249,35 +257,46 @@ class ResidualAttentionBlock(nn.Module):
         return x, attn
 
 
-
 class Transformer(nn.Module):
     def __init__(
-            self,
-            width: int,
-            layers: int,
-            heads: int,
-            mlp_ratio: float = 4.0,
-            ls_init_value: float = None,
-            act_layer: Callable = nn.GELU,
-            norm_layer: Callable = LayerNorm,
+        self,
+        width: int,
+        layers: int,
+        heads: int,
+        mlp_ratio: float = 4.0,
+        ls_init_value: float = None,
+        act_layer: Callable = nn.GELU,
+        norm_layer: Callable = LayerNorm,
     ):
         super().__init__()
         self.width = width
         self.layers = layers
         self.grad_checkpointing = False
 
-        self.resblocks = nn.ModuleList([
-            ResidualAttentionBlock(
-                width, heads, mlp_ratio, ls_init_value=ls_init_value, act_layer=act_layer, norm_layer=norm_layer,
-                idx=idx)
-            for idx in range(layers)
-        ])
+        self.resblocks = nn.ModuleList(
+            [
+                ResidualAttentionBlock(
+                    width,
+                    heads,
+                    mlp_ratio,
+                    ls_init_value=ls_init_value,
+                    act_layer=act_layer,
+                    norm_layer=norm_layer,
+                    idx=idx,
+                )
+                for idx in range(layers)
+            ]
+        )
 
     def get_cast_dtype(self) -> torch.dtype:
         return self.resblocks[0].mlp.c_fc.weight.dtype
 
-    def forward(self, x: torch.Tensor, out_layers: list = [3, 6, 9],
-                attn_mask: Optional[torch.Tensor] = None):
+    def forward(
+        self,
+        x: torch.Tensor,
+        out_layers: list = [3, 6, 9],
+        attn_mask: Optional[torch.Tensor] = None,
+    ):
         idx = 0
         out_tokens = []
         for r in self.resblocks:
@@ -292,29 +311,28 @@ class Transformer(nn.Module):
         return x, out_tokens
 
 
-
 class VisionTransformer(nn.Module):
     output_tokens: torch.jit.Final[bool]
 
     def __init__(
-            self,
-            image_size: int,
-            patch_size: int,
-            width: int,
-            layers: int,
-            heads: int,
-            mlp_ratio: float,
-            ls_init_value: float = None,
-            global_average_pool: bool = False,
-            attentional_pool: bool = False,
-            n_queries: int = 256,
-            attn_pooler_heads: int = 8,
-            output_dim: int = 512,
-            patch_dropout: float = 0.,
-            input_patchnorm: bool = False,
-            act_layer: Callable = nn.GELU,
-            norm_layer: Callable = LayerNorm,
-            output_tokens: bool = False,
+        self,
+        image_size: int,
+        patch_size: int,
+        width: int,
+        layers: int,
+        heads: int,
+        mlp_ratio: float,
+        ls_init_value: float = None,
+        global_average_pool: bool = False,
+        attentional_pool: bool = False,
+        n_queries: int = 256,
+        attn_pooler_heads: int = 8,
+        output_dim: int = 512,
+        patch_dropout: float = 0.0,
+        input_patchnorm: bool = False,
+        act_layer: Callable = nn.GELU,
+        norm_layer: Callable = LayerNorm,
+        output_tokens: bool = False,
     ):
         super().__init__()
         self.output_tokens = output_tokens
@@ -332,16 +350,23 @@ class VisionTransformer(nn.Module):
             self.conv1 = nn.Linear(patch_input_dim, width)
         else:
             self.patchnorm_pre_ln = nn.Identity()
-            self.conv1 = nn.Conv2d(in_channels=3, out_channels=width, kernel_size=patch_size, stride=patch_size,
-                                   bias=False)
+            self.conv1 = nn.Conv2d(
+                in_channels=3,
+                out_channels=width,
+                kernel_size=patch_size,
+                stride=patch_size,
+                bias=False,
+            )
 
         # class embeddings and positional embeddings
-        scale = width ** -0.5
+        scale = width**-0.5
         self.class_embedding = nn.Parameter(scale * torch.randn(width))
-        self.positional_embedding = nn.Parameter(scale * torch.randn(self.grid_size[0] * self.grid_size[1] + 1, width))
+        self.positional_embedding = nn.Parameter(
+            scale * torch.randn(self.grid_size[0] * self.grid_size[1] + 1, width)
+        )
 
         # setting a patch_dropout of 0. would mean it is disabled and this function would be the identity fn
-        self.patch_dropout = PatchDropout(patch_dropout) if patch_dropout > 0. else nn.Identity()
+        self.patch_dropout = PatchDropout(patch_dropout) if patch_dropout > 0.0 else nn.Identity()
 
         self.ln_pre = norm_layer(width)
 
@@ -357,7 +382,9 @@ class VisionTransformer(nn.Module):
 
         self.global_average_pool = global_average_pool
         if attentional_pool:
-            self.attn_pool = AttentionalPooler(output_dim, width, n_head=attn_pooler_heads, n_queries=n_queries)
+            self.attn_pool = AttentionalPooler(
+                output_dim, width, n_head=attn_pooler_heads, n_queries=n_queries
+            )
             self.ln_post = norm_layer(output_dim)
             self.proj = nn.Parameter(scale * torch.randn(output_dim, output_dim))
         else:
@@ -431,12 +458,17 @@ class VisionTransformer(nn.Module):
             return x[:, 0], x[:, 1:]
 
     def forward(self, x: torch.Tensor, out_layers: list):
-
         # to patches - whether to use dual patchnorm - https://arxiv.org/abs/2302.01327v1
         if self.input_patchnorm:
             # einops - rearrange(x, 'b c (h p1) (w p2) -> b (h w) (c p1 p2)')
-            x = x.reshape(x.shape[0], x.shape[1], self.grid_size[0], self.patch_size[0], self.grid_size[1],
-                          self.patch_size[1])
+            x = x.reshape(
+                x.shape[0],
+                x.shape[1],
+                self.grid_size[0],
+                self.patch_size[0],
+                self.grid_size[1],
+                self.patch_size[1],
+            )
             x = x.permute(0, 2, 4, 1, 3, 5)
             x = x.reshape(x.shape[0], self.grid_size[0] * self.grid_size[1], -1)
             x = self.patchnorm_pre_ln(x)
@@ -448,9 +480,13 @@ class VisionTransformer(nn.Module):
 
         # class embeddings and positional embeddings
         x = torch.cat(
-            [self.class_embedding.to(x.dtype) +
-             torch.zeros(x.shape[0], 1, x.shape[-1], dtype=x.dtype, device=x.device),
-             x], dim=1)  # shape = [*, grid ** 2 + 1, width]
+            [
+                self.class_embedding.to(x.dtype)
+                + torch.zeros(x.shape[0], 1, x.shape[-1], dtype=x.dtype, device=x.device),
+                x,
+            ],
+            dim=1,
+        )  # shape = [*, grid ** 2 + 1, width]
         x = x + self.positional_embedding.to(x.dtype)
 
         # a patch_dropout of 0. would mean it is disabled and this function would do nothing but return what was passed in
@@ -460,7 +496,9 @@ class VisionTransformer(nn.Module):
         x = x.permute(1, 0, 2)  # NLD -> LND
         x, patch_tokens = self.transformer(x, out_layers)
         x = x.permute(1, 0, 2)  # LND -> NLD
-        patch_tokens = [patch_tokens[t].permute(1, 0, 2) for t in range(len(patch_tokens))]  # LND -> NLD
+        patch_tokens = [
+            patch_tokens[t].permute(1, 0, 2) for t in range(len(patch_tokens))
+        ]  # LND -> NLD
         # patch_tokens = patch_tokens.permute(1, 0, 2)  # LND -> NLD
 
         if self.attn_pool is not None:
@@ -488,19 +526,19 @@ class TextTransformer(nn.Module):
     output_tokens: torch.jit.Final[bool]
 
     def __init__(
-            self,
-            context_length: int = 77,
-            vocab_size: int = 49408,
-            width: int = 512,
-            heads: int = 8,
-            layers: int = 12,
-            ls_init_value: float = None,
-            output_dim: int = 512,
-            act_layer: Callable = nn.GELU,
-            norm_layer: Callable = LayerNorm,
-            embed_cls: bool = False,
-            pad_id: int = 0,
-            output_tokens: bool = False,
+        self,
+        context_length: int = 77,
+        vocab_size: int = 49408,
+        width: int = 512,
+        heads: int = 8,
+        layers: int = 12,
+        ls_init_value: float = None,
+        output_dim: int = 512,
+        act_layer: Callable = nn.GELU,
+        norm_layer: Callable = LayerNorm,
+        embed_cls: bool = False,
+        pad_id: int = 0,
+        output_tokens: bool = False,
     ):
         super().__init__()
         self.output_tokens = output_tokens
@@ -533,7 +571,7 @@ class TextTransformer(nn.Module):
 
         self.ln_final = norm_layer(width)
 
-        self.register_buffer('attn_mask', self.build_attention_mask(), persistent=False)
+        self.register_buffer("attn_mask", self.build_attention_mask(), persistent=False)
 
         self.init_parameters()
 
@@ -543,8 +581,8 @@ class TextTransformer(nn.Module):
         if self.cls_emb is not None:
             nn.init.normal_(self.cls_emb, std=0.01)
 
-        proj_std = (self.transformer.width ** -0.5) * ((2 * self.transformer.layers) ** -0.5)
-        attn_std = self.transformer.width ** -0.5
+        proj_std = (self.transformer.width**-0.5) * ((2 * self.transformer.layers) ** -0.5)
+        attn_std = self.transformer.width**-0.5
         fc_std = (2 * self.transformer.width) ** -0.5
         for block in self.transformer.resblocks:
             nn.init.normal_(block.attn.in_proj_weight, std=attn_std)
@@ -553,7 +591,7 @@ class TextTransformer(nn.Module):
             nn.init.normal_(block.mlp.c_proj.weight, std=proj_std)
 
         if self.text_projection is not None:
-            nn.init.normal_(self.text_projection, std=self.transformer.width ** -0.5)
+            nn.init.normal_(self.text_projection, std=self.transformer.width**-0.5)
 
     @torch.jit.ignore
     def set_grad_checkpointing(self, enable=True):
@@ -612,4 +650,3 @@ class TextTransformer(nn.Module):
             return pooled, tokens
 
         return pooled
-

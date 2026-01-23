@@ -1,20 +1,22 @@
 [build-system]
-requires = ["setuptools>=64"]
+requires = ["setuptools>=64", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "cuvis_ai_adaclip"
-version = "0.1.0"
+dynamic = ["version"]
 description = "AdaCLIP (ECCV 2024) with a cuvis.ai-compatible plugin package."
 readme = "README.md"
-requires-python = ">=3.10,<3.14"
+requires-python = ">=3.11,<3.12"
 license = { text = "MIT" }
 authors = [
     { name = "Cubert GmbH, Ulm, Germany", email = "SDK@cubert-gmbh.com" },
 ]
 dependencies = [
     # Rely on cuvis_ai to provide the torch / torchvision / numpy stack and most deps.
-    "cuvis_ai",
+    "cuvis==3.5.0",
+    "cuvis-ai",
+    "cuvis-ai-core",
 
     # Extra dependencies specific to AdaCLIP usage that are not guaranteed by cuvis_ai.
     # Note: ftfy is already a dependency of cuvis_ai, but we keep it here explicitly
@@ -61,10 +63,16 @@ method = ["*.txt.gz"]
 model_configs = ["*.json"]
 
 [tool.uv.sources]
-# only use when building adaclip examples inside this repo to install cuvis ai in the env
-# cuvis_ai = { path = "../cuvis.ai", editable = true }
 torch = { index = "pytorch-cu128" }
 torchvision = { index = "pytorch-cu128" }
+
+# Git-based dependencies (active)
+cuvis-ai = { git = "https://github.com/cubert-hyperspectral/cuvis-ai.git", tag = "v0.2.3" }
+cuvis-ai-core = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-core.git", tag = "v0.1.0" }
+
+# Local development alternatives (uncomment to use local paths instead)
+# cuvis-ai = { path = "../cuvis-ai", editable = true }
+# cuvis-ai-core = { path = "../cuvis-ai-core", editable = true }
 
 [[tool.uv.index]]
 name = "pytorch-cu128"
@@ -100,3 +108,12 @@ ignore = ["ANN401", "E501"]
 "test.py" = ["ALL"]
 "app.py" = ["ALL"]
 "loss.py" = ["ALL"]
+
+[tool.setuptools_scm]
+version_scheme = "post-release"
+local_scheme = "node-and-date"
+
+[dependency-groups]
+dev = [
+    "setuptools-scm>=9.2.2",
+]
