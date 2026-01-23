@@ -7,8 +7,8 @@ this repository (``method/*.py``) instead of any code inside ``cuvis_ai``.
 
 from __future__ import annotations
 
-from pathlib import Path
 import time
+from pathlib import Path
 
 import torch
 from loguru import logger
@@ -102,7 +102,9 @@ class AdaCLIPModel(nn.Module):
         init_device = self.device  # Uses the dynamic property
         device_str = str(init_device)
 
-        logger.info(f"[cuvis_ai_adaclip] Initializing AdaCLIP with {self.backbone} backbone on {device_str}...")
+        logger.info(
+            f"[cuvis_ai_adaclip] Initializing AdaCLIP with {self.backbone} backbone on {device_str}..."
+        )
 
         # Create CLIP model and transforms using upstream helpers
         # NOTE: create_model_and_transforms creates tensors on the specified device
@@ -276,7 +278,9 @@ class AdaCLIPModel(nn.Module):
         inference_time_ms = (inference_end - inference_start) * 1000.0
 
         # Log inference time for visibility
-        logger.info(f"[cuvis_ai_adaclip] AdaCLIP inference time: {elapsed:.3f}s ({inference_time_ms:.1f}ms), batch_size={image.shape[0]}, per_image={inference_time_ms/image.shape[0]:.1f}ms")
+        logger.info(
+            f"[cuvis_ai_adaclip] AdaCLIP inference time: {elapsed:.3f}s ({inference_time_ms:.1f}ms), batch_size={image.shape[0]}, per_image={inference_time_ms / image.shape[0]:.1f}ms"
+        )
 
         # Ensure anomaly_score is 1D [B]
         if anomaly_score.dim() > 1:

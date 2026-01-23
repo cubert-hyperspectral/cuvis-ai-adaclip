@@ -39,17 +39,13 @@ def plot_sample_cv2(names, imgs, scores_: dict, gts, save_folder=None):
 
     # save imgs
     for idx in range(total_number):
-
-        cv2.imwrite(os.path.join(save_folder, f'{names[idx]}_ori.jpg'), imgs[idx])
-        cv2.imwrite(os.path.join(save_folder, f'{names[idx]}_gt.jpg'), mask_imgs[idx])
+        cv2.imwrite(os.path.join(save_folder, f"{names[idx]}_ori.jpg"), imgs[idx])
+        cv2.imwrite(os.path.join(save_folder, f"{names[idx]}_gt.jpg"), mask_imgs[idx])
 
         for key in scores:
             heat_map = cv2.applyColorMap(scores[key][idx], cv2.COLORMAP_JET)
             visz_map = cv2.addWeighted(heat_map, 0.5, imgs[idx], 0.5, 0)
-            cv2.imwrite(os.path.join(save_folder, f'{names[idx]}_{key}.jpg'),
-                        visz_map)
-
-
+            cv2.imwrite(os.path.join(save_folder, f"{names[idx]}_{key}.jpg"), visz_map)
 
 
 def plot_feat_cv2(names, feat, save_folder=None):
@@ -59,19 +55,19 @@ def plot_feat_cv2(names, feat, save_folder=None):
     # save imgs
     for idx in range(total_number):
         feat[idx] = cv2.resize(feat[idx], (256, 256), interpolation=cv2.INTER_NEAREST)
-        cv2.imwrite(os.path.join(save_folder, f'{names[idx]}_feat.jpg'), feat[idx])
+        cv2.imwrite(os.path.join(save_folder, f"{names[idx]}_feat.jpg"), feat[idx])
 
 
+valid_feature_visualization_methods = ["TSNE", "PCA"]
 
-valid_feature_visualization_methods = ['TSNE', 'PCA']
 
-def visualize_feature(features, labels, legends, n_components=3, method='TSNE'):
+def visualize_feature(features, labels, legends, n_components=3, method="TSNE"):
     assert method in valid_feature_visualization_methods
     assert n_components in [2, 3]
 
-    if method == 'TSNE':
+    if method == "TSNE":
         model = TSNE(n_components=n_components)
-    elif method == 'PCA':
+    elif method == "PCA":
         model = PCA(n_components=n_components)
 
     else:
@@ -87,19 +83,19 @@ def visualize_feature(features, labels, legends, n_components=3, method='TSNE'):
         raise NotImplementedError
 
     plt.legend(legends)
-    plt.axis('off')
+    plt.axis("off")
 
 
 def scatter_3d(feat_proj, label):
     plt.clf()
-    ax1 = plt.axes(projection='3d')
+    ax1 = plt.axes(projection="3d")
 
     label_unique = np.unique(label)
 
     for l in label_unique:
-        ax1.scatter3D(feat_proj[label == l, 0],
-                      feat_proj[label == l, 1],
-                      feat_proj[label == l, 2], s=5)
+        ax1.scatter3D(
+            feat_proj[label == l, 0], feat_proj[label == l, 1], feat_proj[label == l, 2], s=5
+        )
 
     return ax1
 
@@ -111,7 +107,6 @@ def scatter_2d(feat_proj, label):
     label_unique = np.unique(label)
 
     for l in label_unique:
-        ax1.scatter(feat_proj[label == l, 0],
-                    feat_proj[label == l, 1], s=5)
+        ax1.scatter(feat_proj[label == l, 0], feat_proj[label == l, 1], s=5)
 
     return ax1

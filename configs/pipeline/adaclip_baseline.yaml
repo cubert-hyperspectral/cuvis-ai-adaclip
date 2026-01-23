@@ -6,6 +6,7 @@ nodes:
     normal_class_ids:
     - 0
     - 1
+    anomaly_class_ids: null
 - name: baseline_rgb_selector
   class: cuvis_ai.node.band_selection.BaselineFalseRGBSelector
   params:
@@ -18,7 +19,7 @@ nodes:
   params:
     weight_name: pretrained_all
     backbone: ViT-L-14-336
-    prompt_text: anomaly
+    prompt_text: ''
     image_size: 518
     prompting_depth: 4
     prompting_length: 5
@@ -26,6 +27,7 @@ nodes:
     use_half_precision: false
     enable_warmup: false
     enable_gradients: false
+    use_torch_preprocess: true
 - name: quantile_decider
   class: cuvis_ai.deciders.binary_decider.QuantileBinaryDecider
   params:
@@ -36,11 +38,11 @@ nodes:
   params:
     normalize_scores: true
     cmap: inferno
-    up_to: 3
+    up_to: 5
 - name: rgb_anomaly_mask_viz
   class: cuvis_ai.node.visualizations.RGBAnomalyMask
   params:
-    up_to: 3
+    up_to: 5
 - name: anomaly_metrics
   class: cuvis_ai.node.metrics.AnomalyDetectionMetrics
   params:
@@ -92,4 +94,4 @@ metadata:
   - adaclip
   - baseline
   author: cuvis.ai
-  cuvis_ai_version: 0.1.5.post30+g6d28af5c2.d20251217
+  cuvis_ai_version: 0.1.0

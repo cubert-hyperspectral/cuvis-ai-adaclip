@@ -11,25 +11,20 @@ It:
   * Adds a quantile-based decider, generic anomaly metrics, and visualizations.
   * Logs everything via TensorBoardMonitorNode.
 """
+
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
-import time
-import torch
 import click
-from cuvis_ai_adaclip import (
-    AdaCLIPDetector,
-    download_weights,
-    list_available_weights,
-)
-from loguru import logger
 
-from cuvis_ai_core.data.datasets import SingleCu3sDataModule
 # TEMPORARY: Commented out for performance testing - DELETE after testing
 # from cuvis_ai.deciders.binary_decider import QuantileBinaryDecider
 from cuvis_ai.node.band_selection import CIRFalseColorSelector
 from cuvis_ai.node.data import LentilsAnomalyDataNode
+from cuvis_ai_core.data.datasets import SingleCu3sDataModule
+
 # from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 # from cuvis_ai.node.monitor import TensorBoardMonitorNode
 # from cuvis_ai.node.visualizations import RGBAnomalyMask, ScoreHeatmapVisualizer
@@ -41,11 +36,18 @@ from cuvis_ai_core.training.config import (
     TrainingConfig,
     TrainRunConfig,
 )
+from loguru import logger
 
+from cuvis_ai_adaclip import (
+    AdaCLIPDetector,
+    download_weights,
+    list_available_weights,
+)
 from cuvis_ai_adaclip.cli_utils import AdaCLIPCLI
 
 # Create reusable CLI instance
 cli = AdaCLIPCLI("AdaCLIP CIR False Color")
+
 
 @cli.add_common_options
 @cli.add_data_options
@@ -91,7 +93,10 @@ def main(**kwargs):
     green_nm = kwargs["green_nm"]
 
     logger.info(
-        "Splits: train={}, val={}, test={}", data_config["train_ids"], data_config["val_ids"], data_config["test_ids"]
+        "Splits: train={}, val={}, test={}",
+        data_config["train_ids"],
+        data_config["val_ids"],
+        data_config["test_ids"],
     )
     logger.info("Model: {} | Weights: {}", model_name, weight_name)
     logger.info("Prompt: {}", prompt_text)
@@ -117,8 +122,10 @@ def main(**kwargs):
 
     # Use image_size=336 for faster inference (smaller input = faster processing)
     image_size = 518
-    
-    logger.info(f"AdaCLIP optimizations: FP16={use_half_precision}, Warmup={enable_warmup}, TorchPreprocess={use_torch_preprocess}")
+
+    logger.info(
+        f"AdaCLIP optimizations: FP16={use_half_precision}, Warmup={enable_warmup}, TorchPreprocess={use_torch_preprocess}"
+    )
     logger.info(f"AdaCLIP image_size: {image_size} (smaller = faster inference)")
 
     adaclip = AdaCLIPDetector(
@@ -275,6 +282,7 @@ def main(**kwargs):
         f"test {test_duration:.2f}s, "
         f"total {total_duration:.2f}s"
     )
+
 
 if __name__ == "__main__":
     main()

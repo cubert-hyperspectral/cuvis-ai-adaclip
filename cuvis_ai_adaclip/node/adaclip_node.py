@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import time
 from contextlib import nullcontext
-from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -26,19 +25,21 @@ from torchvision.transforms import Compose
 try:
     from torchvision.transforms import InterpolationMode
     from torchvision.transforms.v2 import functional as F_v2
+
     HAS_TORCHVISION_V2 = True
 except ImportError:
     HAS_TORCHVISION_V2 = False
     InterpolationMode = None
     F_v2 = None
 
+from loguru import logger
+
 from cuvis_ai_adaclip.adaclip_upstream import (
-    AdaCLIPModel,
     OPENAI_DATASET_MEAN,
     OPENAI_DATASET_STD,
+    AdaCLIPModel,
     download_weights,
 )
-from loguru import logger
 
 
 class AdaCLIPDetector(Node):
@@ -117,7 +118,7 @@ class AdaCLIPDetector(Node):
         self.enable_gradients = enable_gradients
         self.use_torch_preprocess = use_torch_preprocess
         self._warmup_done = False
-        
+
         # Log initialization parameters at DEBUG level (only shown if debug logging enabled)
         logger.debug(
             f"[AdaCLIPDetector] Initialized: "
@@ -197,23 +198,36 @@ class AdaCLIPDetector(Node):
         self._initialized_flag.fill_(True)
 
         # Debug: Log device information (DEBUG level - only shown if debug logging enabled)
-        model_device = next(self._adaclip_model.parameters()).device if list(self._adaclip_model.parameters()) else torch.device("cpu")
+        model_device = (
+            next(self._adaclip_model.parameters()).device
+            if list(self._adaclip_model.parameters())
+            else torch.device("cpu")
+        )
         logger.debug(f"[AdaCLIPDetector] Model initialized on device: {model_device}")
         logger.debug(f"[AdaCLIPDetector] CUDA available: {torch.cuda.is_available()}")
         if torch.cuda.is_available():
             logger.debug(f"[AdaCLIPDetector] CUDA device: {torch.cuda.get_device_name(0)}")
-        logger.debug(f"[AdaCLIPDetector] Preprocessing method: {'tensor (fast)' if self.use_torch_preprocess else 'PIL (exact match)'}")
+        logger.debug(
+            f"[AdaCLIPDetector] Preprocessing method: {'tensor (fast)' if self.use_torch_preprocess else 'PIL (exact match)'}"
+        )
 
         # Apply optimizations after model is loaded
         if self.use_half_precision and torch.cuda.is_available():
             try:
-                logger.debug("[AdaCLIPDetector] Converting model to half precision (FP16) for faster inference...")
+                logger.debug(
+                    "[AdaCLIPDetector] Converting model to half precision (FP16) for faster inference..."
+                )
                 self._adaclip_model = self._adaclip_model.half()
-                if hasattr(self._adaclip_model, "_clip_model") and self._adaclip_model._clip_model is not None:
+                if (
+                    hasattr(self._adaclip_model, "_clip_model")
+                    and self._adaclip_model._clip_model is not None
+                ):
                     self._adaclip_model._clip_model = self._adaclip_model._clip_model.half()
                 logger.debug("[AdaCLIPDetector] ✅ Model converted to FP16")
             except Exception as e:
-                logger.warning(f"[AdaCLIPDetector] ⚠️  FP16 conversion failed: {e}, continuing with FP32")
+                logger.warning(
+                    f"[AdaCLIPDetector] ⚠️  FP16 conversion failed: {e}, continuing with FP32"
+                )
                 self.use_half_precision = False
 
         # Enable cuDNN benchmarking for consistent input sizes
@@ -231,7 +245,7 @@ class AdaCLIPDetector(Node):
         - uint8 quantization before resizing (like PIL sees it) - SKIPPED when enable_gradients=True
         - ToTensor() equivalent: uint8 -> float in [0,1]
         - Normalize with cached mean/std
-        
+
         NOTE: When enable_gradients=True, we skip uint8 conversion to preserve gradient flow.
         uint8 is not a floating-point type and breaks the computation graph.
         """
@@ -365,7 +379,7 @@ class AdaCLIPDetector(Node):
         assert self._adaclip_model is not None
 
         b, h, w, _ = rgb_image.shape
-        
+
         # DEBUG: Log input tensor stats for debugging score differences (TRACE level - not shown by default)
         logger.trace(
             f"[AdaCLIPDetector] Input: shape={rgb_image.shape}, "
@@ -383,7 +397,7 @@ class AdaCLIPDetector(Node):
             f"[AdaCLIPDetector] Preprocessing time: {preprocess_time_ms:.2f}ms "
             f"(method={'tensor' if self.use_torch_preprocess else 'PIL'})"
         )
-        
+
         # DEBUG: Log preprocessed tensor stats (TRACE level - not shown by default)
         logger.trace(
             f"[AdaCLIPDetector] Preprocessed: shape={img_tensor.shape}, "
@@ -391,7 +405,7 @@ class AdaCLIPDetector(Node):
             f"min={img_tensor.min().item():.6f}, max={img_tensor.max().item():.6f}, "
             f"mean={img_tensor.mean().item():.6f}"
         )
-        
+
         # Convert to half precision if enabled
         if self.use_half_precision and torch.cuda.is_available():
             img_tensor = img_tensor.half()
@@ -450,21 +464,19 @@ class AdaCLIPDetector(Node):
             torch.cuda.synchronize()
         inference_end = time.perf_counter()
         inference_time_ms = (inference_end - inference_start) * 1000.0
-        
+
         logger.debug(
             f"[AdaCLIPDetector] Inference time: {inference_time_ms:.1f}ms "
-            f"(batch_size={b}, per_image={inference_time_ms/b:.1f}ms)"
+            f"(batch_size={b}, per_image={inference_time_ms / b:.1f}ms)"
         )
-        
+
         # DEBUG: Log raw output stats before postprocessing (TRACE level - not shown by default)
         logger.trace(
             f"[AdaCLIPDetector] Raw anomaly_map: shape={anomaly_map.shape}, "
             f"min={anomaly_map.min().item():.6f}, max={anomaly_map.max().item():.6f}, "
             f"mean={anomaly_map.mean().item():.6f}"
         )
-        logger.trace(
-            f"[AdaCLIPDetector] Raw anomaly_score: {anomaly_score.tolist()}"
-        )
+        logger.trace(f"[AdaCLIPDetector] Raw anomaly_score: {anomaly_score.tolist()}")
 
         # Resize anomaly map back to original size if needed
         if anomaly_map.shape[1] != h or anomaly_map.shape[2] != w:
@@ -543,20 +555,20 @@ class AdaCLIPDetector(Node):
     #     )
     #     save_dir.mkdir(parents=True, exist_ok=True)
 
-        # Convert tensor to numpy and save
-        # try:
-        #     tensor_np = tensor.detach().cpu().numpy()
-        #     save_path = save_dir / f"{self.name}_{name}.npy"
-        #     np.save(save_path, tensor_np)
-        #     if hasattr(self, "_debug") and self._debug:
-        #         print(f"[AdaCLIPDetector._save_debug_tensor] Saved: {save_path}")
-        # except Exception as e:
-        #     if hasattr(self, "_debug") and self._debug:
-        #         print(f"[AdaCLIPDetector._save_debug_tensor] ERROR saving {name}: {e}")
+    # Convert tensor to numpy and save
+    # try:
+    #     tensor_np = tensor.detach().cpu().numpy()
+    #     save_path = save_dir / f"{self.name}_{name}.npy"
+    #     np.save(save_path, tensor_np)
+    #     if hasattr(self, "_debug") and self._debug:
+    #         print(f"[AdaCLIPDetector._save_debug_tensor] Saved: {save_path}")
+    # except Exception as e:
+    #     if hasattr(self, "_debug") and self._debug:
+    #         print(f"[AdaCLIPDetector._save_debug_tensor] ERROR saving {name}: {e}")
 
     def load_state_dict(self, state_dict, strict: bool = True):
         """Load state dict with key remapping for _clip_model/_model compatibility.
-        
+
         Handles backward compatibility when saved weights use different attribute names.
         The AdaCLIPModel wrapper now only uses _clip_model (not _model), but older
         saved weights might have _model keys that need to be remapped.
@@ -572,11 +584,11 @@ class AdaCLIPDetector(Node):
                 remapped_state_dict[key] = value
             else:
                 remapped_state_dict[key] = value
-        
+
         # Call parent load_state_dict with remapped keys
         # Use strict=False to allow partial loading if some keys don't match
         result = super().load_state_dict(remapped_state_dict, strict=False)
-        
+
         # Log any remaining mismatches
         if hasattr(result, "missing_keys") and result.missing_keys:
             logger.warning(
@@ -588,7 +600,7 @@ class AdaCLIPDetector(Node):
                 f"[AdaCLIPDetector] Unexpected keys (first 5): "
                 f"{list(result.unexpected_keys)[:5]}..."
             )
-        
+
         return result
 
 

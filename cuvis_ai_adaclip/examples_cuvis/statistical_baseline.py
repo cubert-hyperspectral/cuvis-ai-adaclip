@@ -10,26 +10,19 @@ It:
   * Adds a quantile-based decider, generic anomaly metrics, and visualizations.
   * Logs everything via TensorBoardMonitorNode and saves the pipeline + experiment config.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
-import click
-import torch
-from cuvis_ai_adaclip import (
-    AdaCLIPDetector,
-    download_weights,
-    list_available_weights,
-)
-from cuvis_ai_adaclip.cli_utils import AdaCLIPCLI, AVAILABLE_BACKBONES
-from loguru import logger
 
-from cuvis_ai_core.data.datasets import SingleCu3sDataModule
+import click
 from cuvis_ai.deciders.binary_decider import QuantileBinaryDecider
 from cuvis_ai.node.band_selection import BaselineFalseRGBSelector
 from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.visualizations import RGBAnomalyMask, ScoreHeatmapVisualizer
+from cuvis_ai_core.data.datasets import SingleCu3sDataModule
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_core.training import StatisticalTrainer
 from cuvis_ai_core.training.config import (
@@ -37,9 +30,18 @@ from cuvis_ai_core.training.config import (
     TrainingConfig,
     TrainRunConfig,
 )
+from loguru import logger
+
+from cuvis_ai_adaclip import (
+    AdaCLIPDetector,
+    download_weights,
+    list_available_weights,
+)
+from cuvis_ai_adaclip.cli_utils import AdaCLIPCLI
 
 # Create reusable CLI instance
 cli = AdaCLIPCLI("AdaCLIP Baseline")
+
 
 @cli.add_common_options
 @cli.add_data_options
@@ -91,8 +93,7 @@ def main(**kwargs):
         normal_class_ids=normal_class_ids,
     )
     band_selector = BaselineFalseRGBSelector(
-        name="baseline_rgb_selector",
-        target_wavelengths=target_wavelengths
+        name="baseline_rgb_selector", target_wavelengths=target_wavelengths
     )
 
     adaclip_detector = AdaCLIPDetector(
@@ -105,26 +106,16 @@ def main(**kwargs):
         enable_warmup=kwargs["enable_warmup"],
     )
 
-    binary_decider = QuantileBinaryDecider(
-        name="quantile_decider",
-        quantile=kwargs["quantile"]
-    )
-    detection_metrics = AnomalyDetectionMetrics(
-        name="anomaly_metrics"
-    )
+    binary_decider = QuantileBinaryDecider(name="quantile_decider", quantile=kwargs["quantile"])
+    detection_metrics = AnomalyDetectionMetrics(name="anomaly_metrics")
     score_visualizer = ScoreHeatmapVisualizer(
-        name="score_heatmap_viz",
-        normalize_scores=True,
-        up_to=kwargs["visualize_upto"]
+        name="score_heatmap_viz", normalize_scores=True, up_to=kwargs["visualize_upto"]
     )
-    mask_visualizer = RGBAnomalyMask(
-        name="rgb_anomaly_mask_viz",
-        up_to=kwargs["visualize_upto"]
-    )
+    mask_visualizer = RGBAnomalyMask(name="rgb_anomaly_mask_viz", up_to=kwargs["visualize_upto"])
     tensorboard_monitor = TensorBoardMonitorNode(
         name="tensorboard_monitor",
         run_name=pipeline.name,
-        output_dir=str(Path(kwargs["output_dir"])/ "tensorboard"),
+        output_dir=str(Path(kwargs["output_dir"]) / "tensorboard"),
     )
 
     # Wiring: cube → band selector → AdaCLIP → decider → metrics + viz + TB
@@ -231,6 +222,7 @@ def main(**kwargs):
     trainrun_config.save_to_file(str(trainrun_output_path))
     logger.info("TensorBoard: {}", tensorboard_monitor.output_dir)
     logger.info("TensorBoard cmd: uv run tensorboard --logdir={}", tensorboard_monitor.output_dir)
+
 
 if __name__ == "__main__":
     main()

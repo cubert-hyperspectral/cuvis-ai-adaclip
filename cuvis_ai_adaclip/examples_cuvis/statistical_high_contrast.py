@@ -10,26 +10,19 @@ It:
   * Adds a quantile-based decider, generic anomaly metrics, and visualizations.
   * Logs everything via TensorBoardMonitorNode and saves the pipeline + experiment config.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
 
-import torch
 import click
-from cuvis_ai_adaclip import (
-    AdaCLIPDetector,
-    download_weights,
-    list_available_weights,
-)
-from loguru import logger
-
-from cuvis_ai_core.data.datasets import SingleCu3sDataModule
 from cuvis_ai.deciders.binary_decider import QuantileBinaryDecider
 from cuvis_ai.node.band_selection import HighContrastBandSelector
 from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.visualizations import RGBAnomalyMask, ScoreHeatmapVisualizer
+from cuvis_ai_core.data.datasets import SingleCu3sDataModule
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_core.training import StatisticalTrainer
 from cuvis_ai_core.training.config import (
@@ -37,11 +30,18 @@ from cuvis_ai_core.training.config import (
     TrainingConfig,
     TrainRunConfig,
 )
+from loguru import logger
 
+from cuvis_ai_adaclip import (
+    AdaCLIPDetector,
+    download_weights,
+    list_available_weights,
+)
 from cuvis_ai_adaclip.cli_utils import AdaCLIPCLI
 
 # Create reusable CLI instance
 cli = AdaCLIPCLI("AdaCLIP High Contrast")
+
 
 @cli.add_common_options
 @cli.add_data_options
@@ -89,7 +89,10 @@ def main(**kwargs):
     enable_warmup = kwargs.get("enable_warmup", False)
 
     logger.info(
-        "Splits: train={}, val={}, test={}", data_config["train_ids"], data_config["val_ids"], data_config["test_ids"]
+        "Splits: train={}, val={}, test={}",
+        data_config["train_ids"],
+        data_config["val_ids"],
+        data_config["test_ids"],
     )
     logger.info("Model: {} | Weights: {}", model_name, weight_name)
     logger.info("Prompt: {}", prompt_text)
@@ -241,6 +244,7 @@ def main(**kwargs):
     logger.info(f"TrainRun config saved: {trainrun_output_path}")
     logger.info(f"TensorBoard logs: {monitor.output_dir}")
     logger.info(f"View logs: uv run tensorboard --logdir={output_dir}")
+
 
 if __name__ == "__main__":
     main()

@@ -5,7 +5,7 @@ import cv2
 import argparse
 from config import DATA_ROOT
 
-dataset_root = os.path.join(DATA_ROOT, 'DAGM2007')
+dataset_root = os.path.join(DATA_ROOT, "DAGM2007")
 
 class_names = os.listdir(dataset_root)
 
@@ -15,13 +15,13 @@ for class_name in class_names:
     for state in states:
         images = list()
         mask = list()
-        files = os.listdir(os.path.join(dataset_root, class_name,state))
+        files = os.listdir(os.path.join(dataset_root, class_name, state))
         for f in files:
-            if 'PNG' in f[-3:]:
+            if "PNG" in f[-3:]:
                 images.append(f)
-        files = os.listdir(os.path.join(dataset_root, class_name, state,'Label'))
+        files = os.listdir(os.path.join(dataset_root, class_name, state, "Label"))
         for f in files:
-            if 'PNG' in f[-3:]:
+            if "PNG" in f[-3:]:
                 mask.append(f)
         normal_image_path_train = list()
         normal_image_path_test = list()
@@ -47,36 +47,35 @@ for class_name in class_names:
         normal_image_path_test = normal_image_path[:length]
         normal_image_path_train = normal_image_path[length:]
 
-        target_root = '../datasets/DAGM_anomaly_detection'
+        target_root = "../datasets/DAGM_anomaly_detection"
 
-        train_root = os.path.join(target_root, class_name, 'train','good')
+        train_root = os.path.join(target_root, class_name, "train", "good")
         if not os.path.exists(train_root):
             os.makedirs(train_root)
         for f in normal_image_path_train:
-            image_data = cv2.imread(os.path.join(dataset_root, class_name, state,f))
-            cv2.imwrite(os.path.join(train_root,f), image_data)
+            image_data = cv2.imread(os.path.join(dataset_root, class_name, state, f))
+            cv2.imwrite(os.path.join(train_root, f), image_data)
 
-        test_root = os.path.join(target_root, class_name, 'test','good')
+        test_root = os.path.join(target_root, class_name, "test", "good")
         if not os.path.exists(test_root):
             os.makedirs(test_root)
         for f in normal_image_path_test:
-            image_data = cv2.imread(os.path.join(dataset_root, class_name, state,f))
-            cv2.imwrite(os.path.join(test_root,f), image_data)
+            image_data = cv2.imread(os.path.join(dataset_root, class_name, state, f))
+            cv2.imwrite(os.path.join(test_root, f), image_data)
 
-        test_root = os.path.join(target_root, class_name, 'test','defect')
+        test_root = os.path.join(target_root, class_name, "test", "defect")
         if not os.path.exists(test_root):
             os.makedirs(test_root)
         for f in abnormal_image_path:
-            image_data = cv2.imread(os.path.join(dataset_root, class_name, state,f))
-            cv2.imwrite(os.path.join(test_root,f), image_data)
+            image_data = cv2.imread(os.path.join(dataset_root, class_name, state, f))
+            cv2.imwrite(os.path.join(test_root, f), image_data)
 
-        test_root = os.path.join(target_root, class_name, 'ground_truth','defect')
+        test_root = os.path.join(target_root, class_name, "ground_truth", "defect")
         if not os.path.exists(test_root):
             os.makedirs(test_root)
         for f in mask:
-            image_data = cv2.imread(os.path.join(dataset_root, class_name, state,'Label',f))
-            cv2.imwrite(os.path.join(test_root,f), image_data)
-
+            image_data = cv2.imread(os.path.join(dataset_root, class_name, state, "Label", f))
+            cv2.imwrite(os.path.join(test_root, f), image_data)
 
 
 print("Done")

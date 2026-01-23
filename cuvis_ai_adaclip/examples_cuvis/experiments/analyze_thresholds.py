@@ -7,49 +7,55 @@ This script:
   * Plots and saves threshold distributions for comparison
   * Helps identify if thresholds differ between frames with/without stones
 """
+
 from __future__ import annotations
 
-from pathlib import Path
 import json
 import time
+from pathlib import Path
 
-import numpy as np
-import torch
 import click
 import matplotlib.pyplot as plt
+import numpy as np
+import torch
 from loguru import logger
 
 try:
     import seaborn as sns
+
     sns.set_style("whitegrid")
     HAS_SEABORN = True
 except ImportError:
     HAS_SEABORN = False
+
+from cuvis_ai.node.band_selection import CIRFalseColorSelector
+from cuvis_ai.node.data import LentilsAnomalyDataNode
+from cuvis_ai_core.data.datasets import SingleCu3sDataModule
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.utils.types import ExecutionStage
 
 from cuvis_ai_adaclip import (
     AdaCLIPDetector,
     download_weights,
     list_available_weights,
 )
-from cuvis_ai_core.data.datasets import SingleCu3sDataModule
-from cuvis_ai.node.band_selection import CIRFalseColorSelector
-from cuvis_ai.node.data import LentilsAnomalyDataNode
-from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
-from cuvis_ai_core.utils.types import ExecutionStage
-
 from cuvis_ai_adaclip.cli_utils import AdaCLIPCLI
 
 # Create reusable CLI instance
 cli = AdaCLIPCLI("AdaCLIP Threshold Analysis")
 
+
 @cli.add_common_options
 @cli.add_data_options
 @cli.add_cir_options
 @click.command()
-@click.option("--quantile", type=float, default=0.995,
-              help="Quantile for threshold calculation")
-@click.option("--output-dir", type=str, default="outputs/threshold_analysis",
-              help="Output directory for analysis results")
+@click.option("--quantile", type=float, default=0.995, help="Quantile for threshold calculation")
+@click.option(
+    "--output-dir",
+    type=str,
+    default="outputs/threshold_analysis",
+    help="Output directory for analysis results",
+)
 def main(**kwargs):
     """Analyze quantile thresholds for frames with and without stones."""
     logger.info("=== AdaCLIP Threshold Analysis ===")
@@ -58,9 +64,9 @@ def main(**kwargs):
     # Parse configuration
     output_dir = Path(kwargs["output_dir"])
     output_dir.mkdir(parents=True, exist_ok=True)
-    
+
     data_config = cli.parse_data_config(**kwargs)
-    
+
     # ----------------------------
     # Data & weights
     # ----------------------------
@@ -106,7 +112,9 @@ def main(**kwargs):
     image_size = 518
     gaussian_sigma = kwargs["gaussian_sigma"]
 
-    logger.info(f"AdaCLIP optimizations: FP16={use_half_precision}, Warmup={enable_warmup}, TorchPreprocess={use_torch_preprocess}")
+    logger.info(
+        f"AdaCLIP optimizations: FP16={use_half_precision}, Warmup={enable_warmup}, TorchPreprocess={use_torch_preprocess}"
+    )
     logger.info(f"AdaCLIP image_size: {image_size}")
 
     adaclip = AdaCLIPDetector(
@@ -143,17 +151,19 @@ def main(**kwargs):
     if datamodule.test_ds is not None:
         all_datasets.append(("test", datamodule.test_ds))
 
-    logger.info(f"Processing {sum(len(ds) for _, ds in all_datasets)} frames across {len(all_datasets)} splits")
+    logger.info(
+        f"Processing {sum(len(ds) for _, ds in all_datasets)} frames across {len(all_datasets)} splits"
+    )
 
     # ----------------------------
     # Process all frames
     # ----------------------------
     results = []
     total_frames = 0
-    
+
     for split_name, dataset in all_datasets:
         logger.info(f"\n=== Processing {split_name} split ({len(dataset)} frames) ===")
-        
+
         for idx in range(len(dataset)):
             sample = dataset[idx]
             cube_np = np.asarray(sample["cube"])  # [H, W, C]
@@ -165,15 +175,17 @@ def main(**kwargs):
             has_stones = False
             if mask_np is not None:
                 has_stones = (mask_np == 3).any()
-            
+
             # Build batch dict
             cube_t = torch.from_numpy(cube_np).unsqueeze(0).to(device)  # [1, H, W, C]
             wl_t = torch.from_numpy(wl_np.astype(np.int32)).unsqueeze(0).to(device)  # [1, C]
-            
+
             batch = {
                 "cube": cube_t,
                 "wavelengths": wl_t,
-                "mask": torch.from_numpy(mask_np).unsqueeze(0).to(device) if mask_np is not None else None,
+                "mask": torch.from_numpy(mask_np).unsqueeze(0).to(device)
+                if mask_np is not None
+                else None,
             }
 
             # Run inference
@@ -190,34 +202,36 @@ def main(**kwargs):
             # Calculate threshold using quantile (same as QuantileBinaryDecider)
             scores_flat = scores_np.flatten()
             threshold = float(np.quantile(scores_flat, quantile))
-            
+
             # Calculate additional statistics
             score_min = float(scores_flat.min())
             score_max = float(scores_flat.max())
             score_mean = float(scores_flat.mean())
             score_std = float(scores_flat.std())
             score_median = float(np.median(scores_flat))
-            
+
             # Count pixels above threshold
             pixels_above_threshold = int((scores_flat >= threshold).sum())
             total_pixels = len(scores_flat)
             fraction_above_threshold = pixels_above_threshold / total_pixels
 
-            results.append({
-                "split": split_name,
-                "frame_idx": idx,
-                "mesu_index": mesu_index,
-                "has_stones": has_stones,
-                "threshold": threshold,
-                "score_min": score_min,
-                "score_max": score_max,
-                "score_mean": score_mean,
-                "score_std": score_std,
-                "score_median": score_median,
-                "pixels_above_threshold": pixels_above_threshold,
-                "total_pixels": total_pixels,
-                "fraction_above_threshold": fraction_above_threshold,
-            })
+            results.append(
+                {
+                    "split": split_name,
+                    "frame_idx": idx,
+                    "mesu_index": mesu_index,
+                    "has_stones": has_stones,
+                    "threshold": threshold,
+                    "score_min": score_min,
+                    "score_max": score_max,
+                    "score_mean": score_mean,
+                    "score_std": score_std,
+                    "score_median": score_median,
+                    "pixels_above_threshold": pixels_above_threshold,
+                    "total_pixels": total_pixels,
+                    "fraction_above_threshold": fraction_above_threshold,
+                }
+            )
 
             total_frames += 1
             if (idx + 1) % 10 == 0:
@@ -230,8 +244,8 @@ def main(**kwargs):
     # ----------------------------
     thresholds_with_stones = [r["threshold"] for r in results if r["has_stones"]]
     thresholds_without_stones = [r["threshold"] for r in results if not r["has_stones"]]
-    
-    logger.info(f"\n=== Threshold Statistics ===")
+
+    logger.info("\n=== Threshold Statistics ===")
     logger.info(f"Frames with stones: {len(thresholds_with_stones)}")
     if thresholds_with_stones:
         logger.info(f"  Threshold mean: {np.mean(thresholds_with_stones):.6f}")
@@ -239,7 +253,7 @@ def main(**kwargs):
         logger.info(f"  Threshold min: {np.min(thresholds_with_stones):.6f}")
         logger.info(f"  Threshold max: {np.max(thresholds_with_stones):.6f}")
         logger.info(f"  Threshold median: {np.median(thresholds_with_stones):.6f}")
-    
+
     logger.info(f"\nFrames without stones: {len(thresholds_without_stones)}")
     if thresholds_without_stones:
         logger.info(f"  Threshold mean: {np.mean(thresholds_without_stones):.6f}")
@@ -261,7 +275,7 @@ def main(**kwargs):
     # Create visualizations
     # ----------------------------
     logger.info("\n=== Creating visualizations ===")
-    
+
     # Set style
     plt.rcParams["figure.figsize"] = (12, 8)
     if HAS_SEABORN:
@@ -269,13 +283,27 @@ def main(**kwargs):
 
     # 1. Threshold distribution comparison
     fig, axes = plt.subplots(2, 2, figsize=(16, 12))
-    
+
     # Histogram comparison
     ax = axes[0, 0]
     if thresholds_with_stones:
-        ax.hist(thresholds_with_stones, bins=30, alpha=0.7, label="With stones", color="red", edgecolor="black")
+        ax.hist(
+            thresholds_with_stones,
+            bins=30,
+            alpha=0.7,
+            label="With stones",
+            color="red",
+            edgecolor="black",
+        )
     if thresholds_without_stones:
-        ax.hist(thresholds_without_stones, bins=30, alpha=0.7, label="Without stones", color="blue", edgecolor="black")
+        ax.hist(
+            thresholds_without_stones,
+            bins=30,
+            alpha=0.7,
+            label="Without stones",
+            color="blue",
+            edgecolor="black",
+        )
     ax.set_xlabel(f"Threshold (quantile={quantile})")
     ax.set_ylabel("Frequency")
     ax.set_title("Threshold Distribution Comparison")
@@ -308,8 +336,12 @@ def main(**kwargs):
             "With stones": thresholds_with_stones,
             "Without stones": thresholds_without_stones,
         }
-        parts = ax.violinplot([data_dict["With stones"], data_dict["Without stones"]], 
-                             positions=[0, 1], showmeans=True, showmedians=True)
+        parts = ax.violinplot(
+            [data_dict["With stones"], data_dict["Without stones"]],
+            positions=[0, 1],
+            showmeans=True,
+            showmedians=True,
+        )
         ax.set_xticks([0, 1])
         ax.set_xticklabels(["With stones", "Without stones"])
         ax.set_ylabel(f"Threshold (quantile={quantile})")
@@ -325,11 +357,27 @@ def main(**kwargs):
     frame_indices_with = [i for i, r in enumerate(results) if r["has_stones"]]
     frame_indices_without = [i for i, r in enumerate(results) if not r["has_stones"]]
     if thresholds_with_stones:
-        ax.scatter(frame_indices_with, thresholds_with_stones, alpha=0.6, label="With stones", 
-                  color="red", s=30, edgecolors="black", linewidths=0.5)
+        ax.scatter(
+            frame_indices_with,
+            thresholds_with_stones,
+            alpha=0.6,
+            label="With stones",
+            color="red",
+            s=30,
+            edgecolors="black",
+            linewidths=0.5,
+        )
     if thresholds_without_stones:
-        ax.scatter(frame_indices_without, thresholds_without_stones, alpha=0.6, label="Without stones",
-                  color="blue", s=30, edgecolors="black", linewidths=0.5)
+        ax.scatter(
+            frame_indices_without,
+            thresholds_without_stones,
+            alpha=0.6,
+            label="Without stones",
+            color="blue",
+            s=30,
+            edgecolors="black",
+            linewidths=0.5,
+        )
     ax.set_xlabel("Frame Index")
     ax.set_ylabel(f"Threshold (quantile={quantile})")
     ax.set_title("Threshold vs Frame Index")
@@ -344,13 +392,13 @@ def main(**kwargs):
 
     # 2. Score statistics comparison
     fig, axes = plt.subplots(2, 2, figsize=(16, 12))
-    
+
     score_stats = ["score_mean", "score_median", "score_max", "score_std"]
     for idx, stat in enumerate(score_stats):
         ax = axes[idx // 2, idx % 2]
         values_with = [r[stat] for r in results if r["has_stones"]]
         values_without = [r[stat] for r in results if not r["has_stones"]]
-        
+
         data_to_plot = []
         labels = []
         if values_with:
@@ -359,7 +407,7 @@ def main(**kwargs):
         if values_without:
             data_to_plot.append(values_without)
             labels.append("Without stones")
-        
+
         if data_to_plot:
             bp = ax.boxplot(data_to_plot, labels=labels, patch_artist=True)
             if len(bp["boxes"]) > 0:
@@ -378,14 +426,23 @@ def main(**kwargs):
 
     # 3. Fraction above threshold comparison
     fig, ax = plt.subplots(1, 1, figsize=(10, 6))
-    
+
     fractions_with = [r["fraction_above_threshold"] for r in results if r["has_stones"]]
     fractions_without = [r["fraction_above_threshold"] for r in results if not r["has_stones"]]
-    
+
     if fractions_with:
-        ax.hist(fractions_with, bins=30, alpha=0.7, label="With stones", color="red", edgecolor="black")
+        ax.hist(
+            fractions_with, bins=30, alpha=0.7, label="With stones", color="red", edgecolor="black"
+        )
     if fractions_without:
-        ax.hist(fractions_without, bins=30, alpha=0.7, label="Without stones", color="blue", edgecolor="black")
+        ax.hist(
+            fractions_without,
+            bins=30,
+            alpha=0.7,
+            label="Without stones",
+            color="blue",
+            edgecolor="black",
+        )
     ax.set_xlabel(f"Fraction of pixels above threshold (quantile={quantile})")
     ax.set_ylabel("Frequency")
     ax.set_title("Fraction of Pixels Above Threshold")
@@ -393,8 +450,13 @@ def main(**kwargs):
     ax.grid(True, alpha=0.3)
     # Add vertical line at expected fraction (1 - quantile)
     expected_fraction = 1.0 - quantile
-    ax.axvline(expected_fraction, color="green", linestyle="--", linewidth=2, 
-              label=f"Expected ({expected_fraction:.3f})")
+    ax.axvline(
+        expected_fraction,
+        color="green",
+        linestyle="--",
+        linewidth=2,
+        label=f"Expected ({expected_fraction:.3f})",
+    )
     ax.legend()
 
     plt.tight_layout()
@@ -419,14 +481,18 @@ def main(**kwargs):
             "median": float(np.median(thresholds_with_stones)) if thresholds_with_stones else None,
         },
         "thresholds_without_stones": {
-            "mean": float(np.mean(thresholds_without_stones)) if thresholds_without_stones else None,
+            "mean": float(np.mean(thresholds_without_stones))
+            if thresholds_without_stones
+            else None,
             "std": float(np.std(thresholds_without_stones)) if thresholds_without_stones else None,
             "min": float(np.min(thresholds_without_stones)) if thresholds_without_stones else None,
             "max": float(np.max(thresholds_without_stones)) if thresholds_without_stones else None,
-            "median": float(np.median(thresholds_without_stones)) if thresholds_without_stones else None,
+            "median": float(np.median(thresholds_without_stones))
+            if thresholds_without_stones
+            else None,
         },
     }
-    
+
     summary_file = output_dir / "summary_statistics.json"
     logger.info(f"\nSaving summary to: {summary_file}")
     with open(summary_file, "w") as f:
@@ -436,7 +502,8 @@ def main(**kwargs):
     logger.info("\n=== Analysis Complete ===")
     logger.info(f"Results saved to: {output_dir}")
     logger.info(f"Total duration: {total_duration:.2f} seconds")
-    logger.info(f"Average time per frame: {total_duration/total_frames:.3f} seconds")
+    logger.info(f"Average time per frame: {total_duration / total_frames:.3f} seconds")
+
 
 if __name__ == "__main__":
     main()

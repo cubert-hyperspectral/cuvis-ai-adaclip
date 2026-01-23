@@ -20,22 +20,18 @@ We log:
   - RX-based anomaly detection metrics (optional comparison)
   - RGB + anomaly masks/overlays via TensorBoard
 """
+
 from __future__ import annotations
 
 import sys
 from pathlib import Path
 
-import torch
 import click
+import torch
 from cuvis_ai.anomaly.rx_detector import RXGlobal
 from cuvis_ai.anomaly.rx_logit_head import RXLogitHead
-from cuvis_ai_core.data.datasets import SingleCu3sDataModule
-from cuvis_ai.deciders.binary_decider import BinaryDecider
-from cuvis_ai.deciders.binary_decider import QuantileBinaryDecider
-from cuvis_ai_core.node import Node
+from cuvis_ai.deciders.binary_decider import BinaryDecider, QuantileBinaryDecider
 from cuvis_ai.node.data import LentilsAnomalyDataNode
-from cuvis_ai_core.pipeline.ports import PortSpec
-from cuvis_ai_core.utils.types import Context
 from cuvis_ai.node.losses import (
     AnomalyBCEWithLogits,
     SelectorDiversityRegularizer,
@@ -45,7 +41,10 @@ from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.selector import SoftChannelSelector
 from cuvis_ai.node.visualizations import RGBAnomalyMask, ScoreHeatmapVisualizer
+from cuvis_ai_core.data.datasets import SingleCu3sDataModule
+from cuvis_ai_core.node import Node
 from cuvis_ai_core.pipeline.canvas import CuvisCanvas
+from cuvis_ai_core.pipeline.ports import PortSpec
 from cuvis_ai_core.training import GradientTrainer, StatisticalTrainer
 from cuvis_ai_core.training.config import (
     CallbacksConfig,
@@ -57,6 +56,7 @@ from cuvis_ai_core.training.config import (
     TrainerConfig,
     TrainingConfig,
 )
+from cuvis_ai_core.utils.types import Context
 from loguru import logger
 
 from cuvis_ai_adaclip import (
@@ -88,6 +88,7 @@ DEFAULT_QUANTILE = 0.995
 
 # Create reusable CLI instance
 cli = AdaCLIPCLI("AdaCLIP Channel Selector")
+
 
 class NormalizeRGBNode(Node):
     """Per-image, per-channel min-max normalization for RGB [B, H, W, 3].
@@ -150,6 +151,7 @@ class NormalizeRGBNode(Node):
 
         return {"rgb_out": rgb}
 
+
 @cli.add_common_options
 @cli.add_data_options
 @cli.add_visualization_options
@@ -175,7 +177,12 @@ def main(**kwargs):
     logger.info("Run: AdaCLIP + SoftChannelSelector (plugin)")
     logger.info("Output: {}", output_dir)
     logger.info("Data root: {}", data_root)
-    logger.info("Splits: train={}, val={}, test={}", data_config["train_ids"], data_config["val_ids"], data_config["test_ids"])
+    logger.info(
+        "Splits: train={}, val={}, test={}",
+        data_config["train_ids"],
+        data_config["val_ids"],
+        data_config["test_ids"],
+    )
     logger.info("Model: {} | Weights: {}", model_name, weight_name)
     logger.info("Prompt: {}", prompt_text)
 
@@ -206,9 +213,7 @@ def main(**kwargs):
     # ----------------------------
     # Build computation graph
     # ----------------------------
-    canvas_name = (
-        f"{experiment_name}_{model_name}_{Path(weight_name).stem}".replace("-", "_")
-    )
+    canvas_name = f"{experiment_name}_{model_name}_{Path(weight_name).stem}".replace("-", "_")
     canvas = CuvisCanvas(canvas_name)
 
     data_node = LentilsAnomalyDataNode(
@@ -418,6 +423,7 @@ def main(**kwargs):
     logger.info("Checkpoints: ./outputs/adaclip_channel_selector_checkpoints")
     logger.info("TensorBoard: {}", tensorboard_node.output_dir)
     logger.info("TensorBoard cmd: uv run tensorboard --logdir={}", tensorboard_node.output_dir)
+
 
 if __name__ == "__main__":
     main()

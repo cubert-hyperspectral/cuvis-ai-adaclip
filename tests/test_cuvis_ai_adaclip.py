@@ -154,9 +154,7 @@ class TestAdaCLIPDetectorNode:
         detector = AdaCLIPDetector()
 
         # Mock preprocessing and model to avoid downloading weights
-        detector._preprocess = MagicMock(
-            return_value=torch.rand(1, 3, 518, 518)
-        )  # type: ignore[assignment]
+        detector._preprocess = MagicMock(return_value=torch.rand(1, 3, 518, 518))  # type: ignore[assignment]
 
         mock_model = MagicMock()
         mock_model.device = torch.device("cpu")
@@ -188,9 +186,7 @@ class TestAdaCLIPDetectorNode:
             torch.tensor([0.5], device="cpu"),
         )
         detector._adaclip_model = mock_model  # type: ignore[assignment]
-        detector._preprocess = MagicMock(
-            return_value=torch.rand(1, 3, 518, 518)
-        )  # type: ignore[assignment]
+        detector._preprocess = MagicMock(return_value=torch.rand(1, 3, 518, 518))  # type: ignore[assignment]
 
         # Input on CPU
         rgb_input = torch.rand(1, 64, 64, 3, dtype=torch.float32)

@@ -1,24 +1,16 @@
 from __future__ import annotations
 
-from pathlib import Path
 import time
+from pathlib import Path
 
-import torch
 import click
-from loguru import logger
-
-from cuvis_ai_adaclip import (
-    AdaCLIPDetector,
-    download_weights,
-    list_available_weights,
-)
-from cuvis_ai_core.data.datasets import SingleCu3sDataModule
 from cuvis_ai.deciders.two_stage_decider import TwoStageBinaryDecider
 from cuvis_ai.node.band_selection import CIRFalseColorSelector
 from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.visualizations import RGBAnomalyMask, ScoreHeatmapVisualizer
+from cuvis_ai_core.data.datasets import SingleCu3sDataModule
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_core.training import StatisticalTrainer
 from cuvis_ai_core.training.config import (
@@ -26,7 +18,13 @@ from cuvis_ai_core.training.config import (
     TrainingConfig,
     TrainRunConfig,
 )
+from loguru import logger
 
+from cuvis_ai_adaclip import (
+    AdaCLIPDetector,
+    download_weights,
+    list_available_weights,
+)
 from cuvis_ai_adaclip.cli_utils import AdaCLIPCLI
 
 cli = AdaCLIPCLI("AdaCLIP CIR False Color (Two-Stage)")
@@ -37,10 +35,13 @@ cli = AdaCLIPCLI("AdaCLIP CIR False Color (Two-Stage)")
 @cli.add_cir_options
 @cli.add_visualization_options
 @click.command()
-@click.option("--image-threshold", type=float, default=0.5,
-              help="Image-level top-k gate threshold")
-@click.option("--top-k-fraction", type=float, default=0.001,
-              help="Fraction of pixels used for top-k mean (default 0.1%)")
+@click.option("--image-threshold", type=float, default=0.5, help="Image-level top-k gate threshold")
+@click.option(
+    "--top-k-fraction",
+    type=float,
+    default=0.001,
+    help="Fraction of pixels used for top-k mean (default 0.1%)",
+)
 def main(**kwargs):
     logger.info("=== AdaCLIP CIR false-color (two-stage) ===")
     run_start = time.perf_counter()
@@ -147,9 +148,7 @@ def main(**kwargs):
     results_dir = output_dir / "trained_models"
     pipeline_metadata = PipelineMetadata(
         name=pipeline.name,
-        description=(
-            "AdaCLIP CIR false-color pipeline with image-level gate + quantile mask"
-        ),
+        description=("AdaCLIP CIR false-color pipeline with image-level gate + quantile mask"),
         tags=["statistical", "adaclip", "two_stage"],
         author="cuvis.ai",
     )
@@ -181,7 +180,9 @@ def main(**kwargs):
 
     total_duration = time.perf_counter() - run_start
     logger.info("=== Experiment Complete ===")
-    logger.info(f"Timing: validation {val_duration:.2f}s, test {test_duration:.2f}s, total {total_duration:.2f}s")
+    logger.info(
+        f"Timing: validation {val_duration:.2f}s, test {test_duration:.2f}s, total {total_duration:.2f}s"
+    )
 
 
 if __name__ == "__main__":
