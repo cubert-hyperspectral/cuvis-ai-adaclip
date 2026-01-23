@@ -32,9 +32,9 @@ from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.visualizations import RGBAnomalyMask, ScoreHeatmapVisualizer
-from cuvis_ai.pipeline.pipeline import CuvisPipeline
-from cuvis_ai.training import StatisticalTrainer
-from cuvis_ai.training.config import (
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.training import StatisticalTrainer
+from cuvis_ai_core.training.config import (
     PipelineMetadata,
     TrainingConfig,
     TrainRunConfig,

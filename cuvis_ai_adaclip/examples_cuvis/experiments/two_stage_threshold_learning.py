@@ -42,9 +42,9 @@ from cuvis_ai.node.band_selection import (
     SupervisedFullSpectrumBandSelector,
 )
 from cuvis_ai.node.data import LentilsAnomalyDataNode
-from cuvis_ai.pipeline.pipeline import CuvisPipeline
-from cuvis_ai.training import StatisticalTrainer
-from cuvis_ai.utils.types import ExecutionStage
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.training import StatisticalTrainer
+from cuvis_ai_core.utils.types import ExecutionStage
 
 from cuvis_ai_adaclip.cli_utils import AdaCLIPCLI
 

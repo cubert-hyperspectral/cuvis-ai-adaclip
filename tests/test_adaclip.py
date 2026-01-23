@@ -393,7 +393,7 @@ class TestIntegration:
     def test_pipeline_connection_types(self):
         """Test that nodes can be connected in a pipeline."""
         from cuvis_ai.node import BaselineFalseRGBSelector
-        from cuvis_ai.pipeline.pipeline import CuvisPipeline
+        from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
         _pipeline = CuvisPipeline("test_adaclip")
 
@@ -410,7 +410,7 @@ class TestIntegration:
     def test_band_selector_to_detector_pipeline(self):
         """Test a complete band selector -> detector pipeline setup."""
         from cuvis_ai.node import BaselineFalseRGBSelector
-        from cuvis_ai.pipeline.pipeline import CuvisPipeline
+        from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
         pipeline = CuvisPipeline("test_band_to_adaclip")
 
@@ -741,7 +741,7 @@ class TestPipelineIntegration:
         """Test pipeline setup with baseline band selector and AdaCLIP."""
         from cuvis_ai.node import BaselineFalseRGBSelector
         from cuvis_ai.node.data import LentilsAnomalyDataNode
-        from cuvis_ai.pipeline.pipeline import CuvisPipeline
+        from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
         pipeline = CuvisPipeline("test_baseline_adaclip")
         data_node = LentilsAnomalyDataNode(
@@ -763,7 +763,7 @@ class TestPipelineIntegration:
         """Test pipeline setup with supervised band selector."""
         from cuvis_ai.node import SupervisedCIRBandSelector
         from cuvis_ai.node.data import LentilsAnomalyDataNode
-        from cuvis_ai.pipeline.pipeline import CuvisPipeline
+        from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
         pipeline = CuvisPipeline("test_supervised_adaclip")
         data_node = LentilsAnomalyDataNode(
@@ -787,7 +787,7 @@ class TestPipelineIntegration:
         """Test that pipeline works when mask is not provided to unsupervised selectors."""
         from cuvis_ai.node import BaselineFalseRGBSelector
         from cuvis_ai.node.data import LentilsAnomalyDataNode
-        from cuvis_ai.pipeline.pipeline import CuvisPipeline
+        from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
         pipeline = CuvisPipeline("test_no_mask")
         data_node = LentilsAnomalyDataNode(

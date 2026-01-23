@@ -34,8 +34,8 @@ from cuvis_ai_adaclip import (
 from cuvis_ai.data.lentils_anomaly import SingleCu3sDataModule
 from cuvis_ai.node.band_selection import CIRFalseColorSelector
 from cuvis_ai.node.data import LentilsAnomalyDataNode
-from cuvis_ai.pipeline.pipeline import CuvisPipeline
-from cuvis_ai.utils.types import ExecutionStage
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.utils.types import ExecutionStage
 
 from cuvis_ai_adaclip.cli_utils import AdaCLIPCLI
 
@@ -440,4 +440,3 @@ def main(**kwargs):
 
 if __name__ == "__main__":
     main()
-

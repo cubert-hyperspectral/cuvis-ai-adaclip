@@ -32,10 +32,10 @@ from cuvis_ai.anomaly.rx_logit_head import RXLogitHead
 from cuvis_ai.data.lentils_anomaly import SingleCu3sDataModule
 from cuvis_ai.deciders.binary_decider import BinaryDecider
 from cuvis_ai.deciders.binary_decider import QuantileBinaryDecider
-from cuvis_ai.node import Node
+from cuvis_ai_core.node import Node
 from cuvis_ai.node.data import LentilsAnomalyDataNode
-from cuvis_ai.pipeline.ports import PortSpec
-from cuvis_ai.utils.types import Context
+from cuvis_ai_core.pipeline.ports import PortSpec
+from cuvis_ai_core.utils.types import Context
 from cuvis_ai.node.losses import (
     AnomalyBCEWithLogits,
     SelectorDiversityRegularizer,
@@ -45,9 +45,9 @@ from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.selector import SoftChannelSelector
 from cuvis_ai.node.visualizations import RGBAnomalyMask, ScoreHeatmapVisualizer
-from cuvis_ai.pipeline.canvas import CuvisCanvas
-from cuvis_ai.training import GradientTrainer, StatisticalTrainer
-from cuvis_ai.training.config import (
+from cuvis_ai_core.pipeline.canvas import CuvisCanvas
+from cuvis_ai_core.training import GradientTrainer, StatisticalTrainer
+from cuvis_ai_core.training.config import (
     CallbacksConfig,
     EarlyStoppingConfig,
     LearningRateMonitorConfig,
@@ -415,7 +415,7 @@ def main(**kwargs):
     logger.info("Test: best checkpoint")
     test_results = grad_trainer.test()
     logger.info("Test results: {}", test_results)
-logger.info("Checkpoints: ./outputs/adaclip_channel_selector_checkpoints")
+    logger.info("Checkpoints: ./outputs/adaclip_channel_selector_checkpoints")
     logger.info("TensorBoard: {}", tensorboard_node.output_dir)
     logger.info("TensorBoard cmd: uv run tensorboard --logdir={}", tensorboard_node.output_dir)
 

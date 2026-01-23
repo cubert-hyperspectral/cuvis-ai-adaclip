@@ -238,7 +238,7 @@ class TestIntegrationWithCuvisAI:
         """
         try:
             from cuvis_ai.node import BaselineFalseRGBSelector
-            from cuvis_ai.pipeline.pipeline import CuvisPipeline
+            from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
         except Exception as exc:  # pragma: no cover - optional dependency
             pytest.skip(f"cuvis.ai integration not available: {exc}")
 
@@ -260,7 +260,7 @@ class TestIntegrationWithCuvisAI:
         try:
             from cuvis_ai.node import BaselineFalseRGBSelector
             from cuvis_ai.node.data import LentilsAnomalyDataNode
-            from cuvis_ai.pipeline.pipeline import CuvisPipeline
+            from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
         except Exception as exc:  # pragma: no cover - optional dependency
             pytest.skip(f"cuvis.ai integration not available: {exc}")
 
