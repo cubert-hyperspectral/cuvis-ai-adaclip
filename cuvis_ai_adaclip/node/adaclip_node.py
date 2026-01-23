@@ -306,11 +306,17 @@ class AdaCLIPDetector(Node):
                 )
 
         # ToTensor(): uint8 -> float in [0,1]
+        # IMPORTANT: Ensure float32 conversion happens before normalization
         if x.dtype != torch.float32:
             x = x.to(torch.float32)
-        x = x / 255.0
+        if x.max() > 1.0:  # Still in [0, 255] range
+            x = x / 255.0
 
         # Normalize using cached buffers
+        # Extra safety: ensure we're in float32 before normalization
+        # (mean/std operations require float dtype)
+        if x.dtype not in (torch.float32, torch.float16, torch.bfloat16):
+            x = x.to(torch.float32)
         mean = self._clip_mean.to(device=x.device, dtype=x.dtype)
         std = self._clip_std.to(device=x.device, dtype=x.dtype)
         x = (x - mean) / std
@@ -381,11 +387,16 @@ class AdaCLIPDetector(Node):
         b, h, w, _ = rgb_image.shape
 
         # DEBUG: Log input tensor stats for debugging score differences (TRACE level - not shown by default)
+        # Convert to float for mean calculation if needed (uint8 doesn't support mean())
+        if rgb_image.dtype in (torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64):
+            mean_val = rgb_image.float().mean().item()
+        else:
+            mean_val = rgb_image.mean().item()
         logger.trace(
             f"[AdaCLIPDetector] Input: shape={rgb_image.shape}, "
             f"device={rgb_image.device}, dtype={rgb_image.dtype}, "
             f"min={rgb_image.min().item():.6f}, max={rgb_image.max().item():.6f}, "
-            f"mean={rgb_image.mean().item():.6f}"
+            f"mean={mean_val:.6f}"
         )
 
         # Preprocess images
@@ -416,7 +427,7 @@ class AdaCLIPDetector(Node):
             try:
                 with torch.no_grad():
                     if self.use_half_precision:
-                        with torch.cuda.amp.autocast(dtype=torch.float16):
+                        with torch.amp.autocast("cuda", dtype=torch.float16):
                             _ = self._adaclip_model.predict(
                                 img_tensor[:1] if img_tensor.shape[0] > 1 else img_tensor,
                                 prompt=self.prompt_text,
@@ -446,7 +457,7 @@ class AdaCLIPDetector(Node):
         with grad_ctx():
             # Use autocast for additional speedup (works with FP16)
             if self.use_half_precision and torch.cuda.is_available():
-                with torch.cuda.amp.autocast(dtype=torch.float16):
+                with torch.amp.autocast("cuda", dtype=torch.float16):
                     anomaly_map, anomaly_score = self._adaclip_model.predict(
                         img_tensor,
                         prompt=self.prompt_text,

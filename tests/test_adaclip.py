@@ -820,23 +820,23 @@ class TestStatisticalScripts:
         import sys
         from pathlib import Path
 
-        project_root = Path(__file__).resolve().parents[2]
+        project_root = Path(__file__).resolve().parents[1]
         if str(project_root) not in sys.path:
             sys.path.insert(0, str(project_root))
 
         # Just test that the module can be imported
-        from examples.adaclip import statistical_baseline  # noqa: F401
+        from cuvis_ai_adaclip.examples_cuvis import statistical_baseline  # noqa: F401
 
     def test_statistical_cir_false_color_imports(self) -> None:
         """Test that statistical_cir_false_color.py can be imported."""
         import sys
         from pathlib import Path
 
-        project_root = Path(__file__).resolve().parents[2]
+        project_root = Path(__file__).resolve().parents[1]
         if str(project_root) not in sys.path:
             sys.path.insert(0, str(project_root))
 
-        from examples.adaclip import statistical_cir_false_color  # noqa: F401
+        from cuvis_ai_adaclip.examples_cuvis import statistical_cir_false_color  # noqa: F401
 
     def test_statistical_supervised_cir_imports(self) -> None:
         """Test that statistical_supervised_cir.py can be imported.
