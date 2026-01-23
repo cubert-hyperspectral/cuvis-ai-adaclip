@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import Generator
 from pathlib import Path
 from typing import Any
 
@@ -287,7 +288,7 @@ def run_analysis_for_band_selector(
             # The input stream is a generator that yields dicts matching band_selector.INPUT_SPECS
             logger.info("No train_ds available, using calibration frames for fitting...")
 
-            def create_input_stream_from_frames():
+            def create_input_stream_from_frames() -> Generator[dict[str, Any], None, None]:
                 """Create input stream generator from calibration frames (similar to StatisticalTrainer._create_input_stream)."""
                 for frame_info in calibration_frames + validation_frames:
                     sample = frame_info["sample"]
@@ -1021,7 +1022,7 @@ def run_analysis_for_band_selector(
     default="all",
     help="Band selector to use: cir_false, supervised_cir, supervised_full, or all",
 )
-def main(**kwargs):
+def main(**kwargs) -> None:
     """Learn two-stage thresholds and evaluate on validation set."""
     logger.info("=== Two-Stage Threshold Learning ===")
     run_start = time.perf_counter()

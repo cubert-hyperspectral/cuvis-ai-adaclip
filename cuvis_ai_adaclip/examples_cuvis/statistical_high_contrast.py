@@ -48,7 +48,7 @@ cli = AdaCLIPCLI("AdaCLIP High Contrast")
 @cli.add_high_contrast_options
 @cli.add_visualization_options
 @click.command()
-def main(**kwargs):
+def main(**kwargs) -> None:
     """Run AdaCLIP high-contrast (statistical) with Click CLI."""
     logger.info("=== AdaCLIP high-contrast (statistical) ===")
 

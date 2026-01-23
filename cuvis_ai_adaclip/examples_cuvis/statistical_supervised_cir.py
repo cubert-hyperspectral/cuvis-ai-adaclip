@@ -48,7 +48,7 @@ cli = AdaCLIPCLI("AdaCLIP Supervised CIR")
 @cli.add_supervised_cir_options
 @cli.add_visualization_options
 @click.command()
-def main(**kwargs):
+def main(**kwargs) -> None:
     """Run AdaCLIP supervised CIR (statistical) with Click CLI."""
     logger.info("=== AdaCLIP supervised CIR (statistical) ===")
 

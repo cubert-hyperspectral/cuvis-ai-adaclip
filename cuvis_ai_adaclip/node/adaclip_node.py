@@ -566,7 +566,7 @@ class AdaCLIPDetector(Node):
     #     if hasattr(self, "_debug") and self._debug:
     #         print(f"[AdaCLIPDetector._save_debug_tensor] ERROR saving {name}: {e}")
 
-    def load_state_dict(self, state_dict, strict: bool = True):
+    def load_state_dict(self, state_dict, strict: bool = True) -> Any:
         """Load state dict with key remapping for _clip_model/_model compatibility.
 
         Handles backward compatibility when saved weights use different attribute names.

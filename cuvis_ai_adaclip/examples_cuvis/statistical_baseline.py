@@ -48,7 +48,7 @@ cli = AdaCLIPCLI("AdaCLIP Baseline")
 @cli.add_wavelength_options
 @cli.add_visualization_options
 @click.command()
-def main(**kwargs):
+def main(**kwargs) -> None:
     """Run AdaCLIP baseline (statistical) with Click CLI."""
     logger.info("Run: AdaCLIP baseline (statistical)")
 

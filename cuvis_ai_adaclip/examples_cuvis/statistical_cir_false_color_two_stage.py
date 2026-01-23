@@ -42,7 +42,7 @@ cli = AdaCLIPCLI("AdaCLIP CIR False Color (Two-Stage)")
     default=0.001,
     help="Fraction of pixels used for top-k mean (default 0.1%)",
 )
-def main(**kwargs):
+def main(**kwargs) -> None:
     logger.info("=== AdaCLIP CIR false-color (two-stage) ===")
     run_start = time.perf_counter()
 

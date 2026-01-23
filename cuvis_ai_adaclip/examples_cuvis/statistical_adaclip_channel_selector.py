@@ -156,7 +156,7 @@ class NormalizeRGBNode(Node):
 @cli.add_data_options
 @cli.add_visualization_options
 @click.command()
-def main(**kwargs):
+def main(**kwargs) -> None:
     """Main training function with AdaCLIP + SoftChannelSelector."""
     # Parse configuration using CLI utilities
     data_root = Path(kwargs.get("cu3s_file_path", "data/Lentils/Lentils_000.cu3s")).parent
@@ -169,7 +169,6 @@ def main(**kwargs):
     experiment_name = DEFAULT_EXPERIMENT_NAME
     monitor_root = output_dir / ".." / "tensorboard"
 
-    mask_channel = DEFAULT_MASK_CHANNEL
     quantile = kwargs["quantile"]
     gaussian_sigma = kwargs["gaussian_sigma"]
     visualize_upto = kwargs["visualize_upto"]

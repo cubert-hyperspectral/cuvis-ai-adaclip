@@ -157,7 +157,7 @@ def save_frame_visualization(
     threshold: float,
     passed_gate: bool,
     iou: float | None = None,
-):
+) -> None:
     """Save comprehensive visualization for a single frame."""
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -283,7 +283,7 @@ def save_frame_visualization(
     default="outputs/cir_false_optimal_threshold_all_frames",
     help="Output directory for results",
 )
-def main(**kwargs):
+def main(**kwargs) -> None:
     logger.info("=== AdaCLIP CIR false-color (optimal threshold - all frames) ===")
     run_start = time.perf_counter()
 

@@ -4,6 +4,8 @@ This module provides reusable Click CLI components that can be used across
 different AdaCLIP examples to maintain consistency and reduce code duplication.
 """
 
+from typing import Any
+
 import click
 import torch
 from loguru import logger
@@ -25,11 +27,11 @@ AVAILABLE_BACKBONES = [
 class AdaCLIPCLI:
     """Base CLI class for AdaCLIP examples with common options."""
 
-    def __init__(self, name="AdaCLIP Example"):
+    def __init__(self, name="AdaCLIP Example") -> None:
         self.name = name
         self.cli = click.Group(name=self.name)
 
-    def add_common_options(self, command):
+    def add_common_options(self, command) -> click.Command:
         """Add common AdaCLIP options to a Click command."""
         available_weights = list_available_weights()
         options = [
@@ -81,7 +83,7 @@ class AdaCLIPCLI:
             command = option(command)
         return command
 
-    def add_data_options(self, command):
+    def add_data_options(self, command) -> click.Command:
         """Add common data configuration options to a Click command."""
         options = [
             click.option(
@@ -125,7 +127,7 @@ class AdaCLIPCLI:
             command = option(command)
         return command
 
-    def add_visualization_options(self, command):
+    def add_visualization_options(self, command) -> click.Command:
         """Add common visualization options to a Click command."""
         options = [
             click.option(
@@ -141,7 +143,7 @@ class AdaCLIPCLI:
             command = option(command)
         return command
 
-    def add_wavelength_options(self, command):
+    def add_wavelength_options(self, command) -> click.Command:
         """Add wavelength-specific options to a Click command."""
         options = [
             click.option(
@@ -157,7 +159,7 @@ class AdaCLIPCLI:
             command = option(command)
         return command
 
-    def add_cir_options(self, command):
+    def add_cir_options(self, command) -> click.Command:
         """Add CIR false-color specific options to a Click command."""
         options = [
             click.option(
@@ -172,7 +174,7 @@ class AdaCLIPCLI:
             command = option(command)
         return command
 
-    def add_cir_false_rg_options(self, command):
+    def add_cir_false_rg_options(self, command) -> click.Command:
         """Add CIR false-RG specific options (NIR->R, Red->G, Green(visible)->B)."""
         options = [
             click.option(
@@ -189,7 +191,7 @@ class AdaCLIPCLI:
             command = option(command)
         return command
 
-    def add_high_contrast_options(self, command):
+    def add_high_contrast_options(self, command) -> click.Command:
         """Add high-contrast band selection options."""
         options = [
             click.option(
@@ -208,7 +210,7 @@ class AdaCLIPCLI:
             command = option(command)
         return command
 
-    def parse_hc_windows(self, windows_str):
+    def parse_hc_windows(self, windows_str) -> tuple[tuple[float, float], ...]:
         """Parse high-contrast windows from comma-separated string (e.g., '440-500,500-580,610-700')."""
         windows = []
         for window in windows_str.split(","):
@@ -216,7 +218,7 @@ class AdaCLIPCLI:
             windows.append((float(start), float(end)))
         return tuple(windows)
 
-    def add_supervised_cir_options(self, command):
+    def add_supervised_cir_options(self, command) -> click.Command:
         """Add supervised CIR band selection options."""
         options = [
             click.option(
@@ -244,7 +246,7 @@ class AdaCLIPCLI:
             command = option(command)
         return command
 
-    def parse_sup_windows(self, windows_str):
+    def parse_sup_windows(self, windows_str) -> tuple[tuple[float, float], ...]:
         """Parse supervised CIR windows from comma-separated string."""
         windows = []
         for window in windows_str.split(","):
@@ -252,11 +254,11 @@ class AdaCLIPCLI:
             windows.append((float(start), float(end)))
         return tuple(windows)
 
-    def parse_sup_score_weights(self, weights_str):
+    def parse_sup_score_weights(self, weights_str) -> tuple[float, ...]:
         """Parse score weights from comma-separated string."""
         return tuple(float(w.strip()) for w in weights_str.split(","))
 
-    def add_supervised_full_spectrum_options(self, command):
+    def add_supervised_full_spectrum_options(self, command) -> click.Command:
         """Add supervised full-spectrum band selection options (no windows, global selection)."""
         options = [
             click.option(
@@ -278,7 +280,7 @@ class AdaCLIPCLI:
             command = option(command)
         return command
 
-    def add_supervised_windowed_false_rgb_options(self, command):
+    def add_supervised_windowed_false_rgb_options(self, command) -> click.Command:
         """Add supervised windowed false-RGB band selection options (visible RGB windows)."""
         options = [
             click.option(
@@ -306,7 +308,7 @@ class AdaCLIPCLI:
             command = option(command)
         return command
 
-    def parse_data_config(self, **kwargs):
+    def parse_data_config(self, **kwargs) -> dict[str, Any]:
         """Parse data configuration from CLI arguments."""
         return {
             "cu3s_file_path": kwargs.get(
@@ -324,19 +326,19 @@ class AdaCLIPCLI:
             "processing_mode": kwargs.get("processing_mode", "Reflectance"),
         }
 
-    def parse_normal_class_ids(self, class_ids_str):
+    def parse_normal_class_ids(self, class_ids_str) -> list[int]:
         """Parse normal class IDs from comma-separated string."""
         return [int(x.strip()) for x in class_ids_str.split(",")]
 
-    def parse_target_wavelengths(self, wavelengths_str):
+    def parse_target_wavelengths(self, wavelengths_str) -> tuple[float, ...]:
         """Parse target wavelengths from comma-separated string."""
         return tuple(float(w.strip()) for w in wavelengths_str.split(","))
 
-    def setup_logging(self):
+    def setup_logging(self) -> None:
         """Set up consistent logging for AdaCLIP examples."""
         logger.remove()  # Remove default logger
         logger.add(lambda msg: print(msg), level="INFO")
 
-    def get_device(self):
+    def get_device(self) -> str:
         """Get the appropriate device (CUDA if available, else CPU)."""
         return "cuda" if torch.cuda.is_available() else "cpu"

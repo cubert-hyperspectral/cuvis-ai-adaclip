@@ -56,7 +56,7 @@ cli = AdaCLIPCLI("AdaCLIP Threshold Analysis")
     default="outputs/threshold_analysis",
     help="Output directory for analysis results",
 )
-def main(**kwargs):
+def main(**kwargs) -> None:
     """Analyze quantile thresholds for frames with and without stones."""
     logger.info("=== AdaCLIP Threshold Analysis ===")
     run_start = time.perf_counter()
@@ -348,7 +348,7 @@ def main(**kwargs):
         ax.set_title("Threshold Violin Plot")
         ax.grid(True, alpha=0.3)
         # Color the violins
-        for pc, color in zip(parts["bodies"], ["red", "blue"]):
+        for pc, color in zip(parts["bodies"], ["red", "blue"], strict=True):
             pc.set_facecolor(color)
             pc.set_alpha(0.7)
 

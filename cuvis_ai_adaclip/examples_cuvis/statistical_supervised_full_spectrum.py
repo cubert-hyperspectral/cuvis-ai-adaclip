@@ -48,7 +48,7 @@ cli = AdaCLIPCLI("AdaCLIP Supervised Full Spectrum")
 @cli.add_supervised_full_spectrum_options
 @cli.add_visualization_options
 @click.command()
-def main(**kwargs):
+def main(**kwargs) -> None:
     """Run AdaCLIP supervised full-spectrum (statistical) with Click CLI."""
     logger.info("=== AdaCLIP supervised full-spectrum (statistical) ===")
 

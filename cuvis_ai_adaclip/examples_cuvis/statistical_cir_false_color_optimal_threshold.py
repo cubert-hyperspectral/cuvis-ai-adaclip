@@ -63,7 +63,7 @@ cli = AdaCLIPCLI("AdaCLIP CIR False Color (Optimal Threshold)")
     default=0.001,
     help="Fraction of pixels used for top-k mean (default 0.1%)",
 )
-def main(**kwargs):
+def main(**kwargs) -> None:
     """Run AdaCLIP CIR false-color with optimal threshold (two-stage) using Click CLI."""
     logger.info("=== AdaCLIP CIR false-color (optimal threshold - two-stage) ===")
     run_start = time.perf_counter()

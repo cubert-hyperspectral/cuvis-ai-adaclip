@@ -48,7 +48,7 @@ cli = AdaCLIPCLI("AdaCLIP Supervised Windowed False RGB")
 @cli.add_supervised_windowed_false_rgb_options
 @cli.add_visualization_options
 @click.command()
-def main(**kwargs):
+def main(**kwargs) -> None:
     """Run AdaCLIP supervised windowed false-RGB (statistical) with Click CLI."""
     logger.info("=== AdaCLIP supervised windowed false-RGB (statistical) ===")
 

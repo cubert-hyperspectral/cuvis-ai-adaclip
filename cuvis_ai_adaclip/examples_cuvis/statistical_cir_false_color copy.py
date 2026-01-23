@@ -54,7 +54,7 @@ cli = AdaCLIPCLI("AdaCLIP CIR False Color")
 @cli.add_cir_options
 @cli.add_visualization_options
 @click.command()
-def main(**kwargs):
+def main(**kwargs) -> None:
     """Run AdaCLIP CIR false-color (statistical) with Click CLI."""
     logger.info("=== AdaCLIP CIR false-color (statistical) ===")
     run_start = time.perf_counter()
@@ -83,8 +83,6 @@ def main(**kwargs):
     # ----------------------------
     # Resolve example-specific config
     # ----------------------------
-    quantile = kwargs["quantile"]
-    visualize_upto = kwargs["visualize_upto"]
     gaussian_sigma = kwargs["gaussian_sigma"]
 
     # CIR false-color wavelengths from CLI options
