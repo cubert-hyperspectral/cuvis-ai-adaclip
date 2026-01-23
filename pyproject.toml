@@ -1,0 +1,119 @@
+[build-system]
+requires = ["setuptools>=64", "setuptools-scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cuvis_ai_adaclip"
+dynamic = ["version"]
+description = "AdaCLIP (ECCV 2024) with a cuvis.ai-compatible plugin package."
+readme = "README.md"
+requires-python = ">=3.11,<3.12"
+license = { text = "MIT" }
+authors = [
+    { name = "Cubert GmbH, Ulm, Germany", email = "SDK@cubert-gmbh.com" },
+]
+dependencies = [
+    # Rely on cuvis_ai to provide the torch / torchvision / numpy stack and most deps.
+    "cuvis==3.5.0",
+    "cuvis-ai",
+    "cuvis-ai-core",
+
+    # Extra dependencies specific to AdaCLIP usage that are not guaranteed by cuvis_ai.
+    # Note: ftfy is already a dependency of cuvis_ai, but we keep it here explicitly
+    # to mirror the original AdaCLIP requirements and make the plugin self-explanatory.
+    "ftfy",
+    "seaborn",
+    "click",  # For CLI interface
+
+    # Original AdaCLIP requirements (kept here as comments for reference):
+    # "torch==1.11.0",
+    # "torchvision==0.11.2",
+    # "torchaudio==0.10.1",
+    # "tqdm",
+    # "tensorboard",
+    # "setuptools==58.0.4",
+    # "opencv-python",
+    # "scikit-image",
+    # "scikit-learn",
+    # "matplotlib",
+    # "seaborn",
+    # "regex",
+    # "numpy==1.26.4",
+    # "gradio",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ipython",
+    "pytest",
+    "ruff",
+]
+
+[project.urls]
+Homepage = "https://github.com/cubert-hyperspectral/AdaCLIP"
+
+[tool.setuptools]
+py-modules = ["loss"]
+
+[tool.setuptools.packages.find]
+include = ["method*", "dataset*", "adaclip_tools*", "cuvis_ai_adaclip*", "model_configs*"]
+
+[tool.setuptools.package-data]
+method = ["*.txt.gz"]
+model_configs = ["*.json"]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }
+torchvision = { index = "pytorch-cu128" }
+
+# Git-based dependencies (active)
+cuvis-ai = { git = "https://github.com/cubert-hyperspectral/cuvis-ai.git", tag = "v0.2.3" }
+cuvis-ai-core = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-core.git", tag = "v0.1.0" }
+
+# Local development alternatives (uncomment to use local paths instead)
+# cuvis-ai = { path = "../cuvis-ai", editable = true }
+# cuvis-ai-core = { path = "../cuvis-ai-core", editable = true }
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "C4"]
+extend-select = [
+    "ANN201",
+    "ANN202",
+    "ANN204",
+]
+ignore = ["ANN401", "E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# Ignore upstream AdaCLIP code
+"method/**" = ["ALL"]
+"dataset/**" = ["ALL"]
+"adaclip_tools/**" = ["ALL"]
+"data_preprocess/**" = ["ALL"]
+"train.py" = ["ALL"]
+"test.py" = ["ALL"]
+"app.py" = ["ALL"]
+"loss.py" = ["ALL"]
+
+[tool.setuptools_scm]
+version_scheme = "post-release"
+local_scheme = "node-and-date"
+
+[dependency-groups]
+dev = [
+    "setuptools-scm>=9.2.2",
+]

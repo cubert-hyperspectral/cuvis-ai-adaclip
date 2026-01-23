@@ -1,12 +1,15 @@
 from typing import Union, List, Optional
 import numpy as np
 import torch
-from pkg_resources import packaging
+
+# from pkg_resources import packaging
+import packaging
 from torch import nn
 from torch.nn import functional as F
 from .clip_model import CLIP
 from .simple_tokenizer import SimpleTokenizer as _Tokenizer
 from sklearn.cluster import KMeans
+
 
 class ProjectLayer(nn.Module):
     def __init__(self, input_dim, output_dim, num_replicas, stack=False, is_array=True):
@@ -21,7 +24,9 @@ class ProjectLayer(nn.Module):
         out_tokens = []
         for i in range(self.num_replicas):
             if self.is_array:
-                temp = self.head[i](tokens[i][:, 1:, :]) # for ViT, we exclude the class token and only extract patch tokens here.
+                temp = self.head[i](
+                    tokens[i][:, 1:, :]
+                )  # for ViT, we exclude the class token and only extract patch tokens here.
             else:
                 temp = self.head[i](tokens)
 
@@ -32,7 +37,14 @@ class ProjectLayer(nn.Module):
 
         return out_tokens
 
+
 class PromptLayer(nn.Module):
+    """Learnable prompt layer for text/visual encoder.
+
+    This version mirrors the patched implementation used in cuvis.ai to handle
+    dynamic prompt shapes robustly for both text and visual branches.
+    """
+
     def __init__(self, channel, length, depth, is_text, prompting_type, enabled=True):
         super(PromptLayer, self).__init__()
 
@@ -41,102 +53,152 @@ class PromptLayer(nn.Module):
         self.depth = depth
         self.is_text = is_text
         self.enabled = enabled
-
         self.prompting_type = prompting_type
 
-        if self.enabled: # only when enabled, the parameters should be constructed
-            if 'S' in prompting_type: # static prompts
-                # learnable
+        if self.enabled:
+            if "S" in prompting_type:  # static prompts
                 self.static_prompts = nn.ParameterList(
-                    [nn.Parameter(torch.empty(self.length, self.channel))
-                     for _ in range(self.depth)])
-
+                    [
+                        nn.Parameter(torch.empty(self.length, self.channel))
+                        for _ in range(self.depth)
+                    ]
+                )
                 for single_para in self.static_prompts:
                     nn.init.normal_(single_para, std=0.02)
 
-            if 'D' in prompting_type: # dynamic prompts
-                self.dynamic_prompts = [0.] # place holder
+            if "D" in prompting_type:  # dynamic prompts
+                self.dynamic_prompts = [0.0]  # placeholder
 
     def set_dynamic_prompts(self, dynamic_prompts):
         self.dynamic_prompts = dynamic_prompts
 
-    def forward_text(self, resblock, indx, x, k_x=None, v_x=None, attn_mask: Optional[torch.Tensor] = None):
+    def forward_text(
+        self, resblock, indx, x, k_x=None, v_x=None, attn_mask: Optional[torch.Tensor] = None
+    ):
         if self.enabled:
             length = self.length
 
-            # only prompt the first J layers
             if indx < self.depth:
-                if 'S' in self.prompting_type and 'D' in self.prompting_type: # both
-                    static_prompts = self.static_prompts[indx].unsqueeze(0).expand(x.shape[1], -1, -1)
-                    textual_context = self.dynamic_prompts + static_prompts
-                elif 'S' in self.prompting_type:  # static
-                    static_prompts = self.static_prompts[indx].unsqueeze(0).expand(x.shape[1], -1, -1)
-                    textual_context = static_prompts
-                elif 'D' in self.prompting_type:  # dynamic
-                    textual_context = self.dynamic_prompts
-                else:
-                    print('You should at least choose one type of prompts when the prompting branches are not none.')
-                    raise NotImplementedError
+                if "S" in self.prompting_type and "D" in self.prompting_type:
+                    static_prompts = (
+                        self.static_prompts[indx].unsqueeze(0).expand(x.shape[1], -1, -1)
+                    )
 
-            if indx == 0:  # for the first layer
+                    # Expand dynamic_prompts to match text batch size (x.shape[1]).
+                    # dynamic_prompts typically has shape (image_batch, length, channel)
+                    # while text processing creates x.shape[1] variations per image.
+                    if isinstance(self.dynamic_prompts, torch.Tensor):
+                        if self.dynamic_prompts.shape[0] != x.shape[1]:
+                            dynamic_prompts_expanded = self.dynamic_prompts[0:1].expand(
+                                x.shape[1], -1, -1
+                            )
+                        else:
+                            dynamic_prompts_expanded = self.dynamic_prompts
+                    else:
+                        dynamic_prompts_expanded = self.dynamic_prompts
+                    textual_context = dynamic_prompts_expanded + static_prompts
+                elif "S" in self.prompting_type:
+                    static_prompts = (
+                        self.static_prompts[indx].unsqueeze(0).expand(x.shape[1], -1, -1)
+                    )
+                    textual_context = static_prompts
+                elif "D" in self.prompting_type:
+                    if isinstance(self.dynamic_prompts, torch.Tensor):
+                        if self.dynamic_prompts.shape[0] != x.shape[1]:
+                            dynamic_prompts_expanded = self.dynamic_prompts[0:1].expand(
+                                x.shape[1], -1, -1
+                            )
+                        else:
+                            dynamic_prompts_expanded = self.dynamic_prompts
+                    else:
+                        dynamic_prompts_expanded = self.dynamic_prompts
+                    textual_context = dynamic_prompts_expanded
+                else:
+                    raise NotImplementedError("You should choose at least one type of prompts.")
+
+            if indx == 0:
                 x = x
             else:
-                if indx < self.depth:  # replace with learnalbe tokens
+                if indx < self.depth:
                     prefix = x[:1, :, :]
-                    suffix = x[1 + length:, :, :]
+                    suffix = x[1 + length :, :, :]
                     textual_context = textual_context.permute(1, 0, 2).half()
                     x = torch.cat([prefix, textual_context, suffix], dim=0)
-                else:  # keep the same
+                else:
                     x = x
         else:
             x = x
 
-        x, attn_tmp = resblock(q_x=x, k_x=k_x, v_x= v_x, attn_mask=attn_mask)
-
+        x, attn_tmp = resblock(q_x=x, k_x=k_x, v_x=v_x, attn_mask=attn_mask)
         return x, attn_tmp
 
-    def forward_visual(self, resblock, indx, x, k_x=None, v_x=None, attn_mask: Optional[torch.Tensor] = None):
+    def forward_visual(
+        self, resblock, indx, x, k_x=None, v_x=None, attn_mask: Optional[torch.Tensor] = None
+    ):
         if self.enabled:
             length = self.length
 
-            # only prompt the first J layers
             if indx < self.depth:
-                if 'S' in self.prompting_type and 'D' in self.prompting_type: # both
-                    static_prompts = self.static_prompts[indx].unsqueeze(0).expand(x.shape[1], -1, -1)
-                    visual_context = self.dynamic_prompts + static_prompts
-                elif 'S' in self.prompting_type:  # static
-                    static_prompts = self.static_prompts[indx].unsqueeze(0).expand(x.shape[1], -1, -1)
+                if "S" in self.prompting_type and "D" in self.prompting_type:
+                    static_prompts = (
+                        self.static_prompts[indx].unsqueeze(0).expand(x.shape[1], -1, -1)
+                    )
+                    # For visual prompts, x.shape[1] is the image batch size, which should match
+                    # dynamic_prompts shape, but handle edge cases for consistency.
+                    if isinstance(self.dynamic_prompts, torch.Tensor):
+                        if self.dynamic_prompts.shape[0] != x.shape[1]:
+                            dynamic_prompts_expanded = self.dynamic_prompts[0:1].expand(
+                                x.shape[1], -1, -1
+                            )
+                        else:
+                            dynamic_prompts_expanded = self.dynamic_prompts
+                    else:
+                        dynamic_prompts_expanded = self.dynamic_prompts
+                    visual_context = dynamic_prompts_expanded + static_prompts
+                elif "S" in self.prompting_type:
+                    static_prompts = (
+                        self.static_prompts[indx].unsqueeze(0).expand(x.shape[1], -1, -1)
+                    )
                     visual_context = static_prompts
-                elif 'D' in self.prompting_type:  # dynamic
-                    visual_context = self.dynamic_prompts
+                elif "D" in self.prompting_type:
+                    if isinstance(self.dynamic_prompts, torch.Tensor):
+                        if self.dynamic_prompts.shape[0] != x.shape[1]:
+                            dynamic_prompts_expanded = self.dynamic_prompts[0:1].expand(
+                                x.shape[1], -1, -1
+                            )
+                        else:
+                            dynamic_prompts_expanded = self.dynamic_prompts
+                    else:
+                        dynamic_prompts_expanded = self.dynamic_prompts
+                    visual_context = dynamic_prompts_expanded
                 else:
-                    print('You should at least choose one type of prompts when the prompting branches are not none.')
-                    raise NotImplementedError
+                    raise NotImplementedError("You should choose at least one type of prompts.")
 
-
-            if indx == 0:  # for the first layer
+            if indx == 0:
                 visual_context = visual_context.permute(1, 0, 2).half()
                 x = torch.cat([x, visual_context], dim=0)
             else:
-                if indx < self.depth:  # replace with learnalbe tokens
-                    prefix = x[0:x.shape[0] - length, :, :]
+                if indx < self.depth:
+                    prefix = x[0 : x.shape[0] - length, :, :]
                     visual_context = visual_context.permute(1, 0, 2).half()
                     x = torch.cat([prefix, visual_context], dim=0)
-                else:  # keep the same
+                else:
                     x = x
         else:
             x = x
 
-        x, attn_tmp = resblock(q_x=x, k_x=k_x, v_x= v_x, attn_mask=attn_mask)
+        x, attn_tmp = resblock(q_x=x, k_x=k_x, v_x=v_x, attn_mask=attn_mask)
 
         if self.enabled:
-            tokens = x[:x.shape[0] - length, :, :]
+            tokens = x[: x.shape[0] - length, :, :]
         else:
             tokens = x
 
         return x, tokens, attn_tmp
 
-    def forward(self, resblock, indx, x, k_x=None, v_x=None, attn_mask: Optional[torch.Tensor] = None):
+    def forward(
+        self, resblock, indx, x, k_x=None, v_x=None, attn_mask: Optional[torch.Tensor] = None
+    ):
         if self.is_text:
             return self.forward_text(resblock, indx, x, k_x, v_x, attn_mask)
         else:
@@ -148,20 +210,34 @@ class TextEmbebddingLayer(nn.Module):
         super(TextEmbebddingLayer, self).__init__()
         self.tokenizer = _Tokenizer()
         self.ensemble_text_features = {}
-        self.prompt_normal = ['{}', 'flawless {}', 'perfect {}', 'unblemished {}', '{} without flaw',
-                              '{} without defect',
-                              '{} without damage']
-        self.prompt_abnormal = ['damaged {}', 'broken {}', '{} with flaw', '{} with defect', '{} with damage']
+        self.prompt_normal = [
+            "{}",
+            "flawless {}",
+            "perfect {}",
+            "unblemished {}",
+            "{} without flaw",
+            "{} without defect",
+            "{} without damage",
+        ]
+        self.prompt_abnormal = [
+            "damaged {}",
+            "broken {}",
+            "{} with flaw",
+            "{} with defect",
+            "{} with damage",
+        ]
         self.prompt_state = [self.prompt_normal, self.prompt_abnormal]
-        self.prompt_templates = ['a bad photo of a {}.',
-                                 'a low resolution photo of the {}.',
-                                 'a bad photo of the {}.',
-                                 'a cropped photo of the {}.',
-                                 ]
+        self.prompt_templates = [
+            "a bad photo of a {}.",
+            "a low resolution photo of the {}.",
+            "a bad photo of the {}.",
+            "a cropped photo of the {}.",
+        ]
         self.fixed = fixed
 
-    def tokenize(self, texts: Union[str, List[str]], context_length: int = 77, truncate: bool = False) -> Union[
-        torch.IntTensor, torch.LongTensor]:
+    def tokenize(
+        self, texts: Union[str, List[str]], context_length: int = 77, truncate: bool = False
+    ) -> Union[torch.IntTensor, torch.LongTensor]:
         if isinstance(texts, str):
             texts = [texts]
 
@@ -179,8 +255,10 @@ class TextEmbebddingLayer(nn.Module):
                     tokens = tokens[:context_length]
                     tokens[-1] = eot_token
                 else:
-                    raise RuntimeError(f"Input {texts[i]} is too long for context length {context_length}")
-            result[i, :len(tokens)] = torch.tensor(tokens)
+                    raise RuntimeError(
+                        f"Input {texts[i]} is too long for context length {context_length}"
+                    )
+            result[i, : len(tokens)] = torch.tensor(tokens)
 
         return result
 
@@ -189,7 +267,6 @@ class TextEmbebddingLayer(nn.Module):
         text_feature_list = []
 
         for indx, text in enumerate(texts):
-
             if self.fixed:
                 if self.ensemble_text_features.get(text) is None:
                     text_features = self.encode_text(model, text, device)
@@ -210,7 +287,7 @@ class TextEmbebddingLayer(nn.Module):
     def encode_text(self, model, text, device):
         text_features = []
         for i in range(len(self.prompt_state)):
-            text = text.replace('-', ' ')
+            text = text.replace("-", " ")
             prompted_state = [state.format(text) for state in self.prompt_state[i]]
             prompted_sentence = []
             for s in prompted_state:
@@ -220,10 +297,10 @@ class TextEmbebddingLayer(nn.Module):
 
             class_embeddings = model.encode_text(prompted_sentence)
 
-            #class_embeddings /= class_embeddings.norm(dim=-1, keepdim=True)
+            # class_embeddings /= class_embeddings.norm(dim=-1, keepdim=True)
             class_embeddings = class_embeddings / class_embeddings.norm(dim=-1, keepdim=True)
             class_embedding = class_embeddings.mean(dim=0)
-            #class_embedding /= class_embedding.norm()
+            # class_embedding /= class_embedding.norm()
             class_embedding = class_embedding / class_embedding.norm()
             text_features.append(class_embedding)
 
@@ -243,16 +320,17 @@ class HybridSemanticFusion(nn.Module):
     # @torch.no_grad()
     def forward(self, patch_tokens: list, anomaly_maps: list):
         anomaly_map = torch.mean(torch.stack(anomaly_maps, dim=1), dim=1)
-        anomaly_map = torch.softmax(anomaly_map, dim=2)[:, :, 1] # B, L
+        anomaly_map = torch.softmax(anomaly_map, dim=2)[:, :, 1]  # B, L
 
         # extract most abnormal feats
         selected_abnormal_tokens = []
         k = min(anomaly_map.shape[1], self.n_aggregate_patch_tokens)
         top_k_indices = torch.topk(anomaly_map, k=k, dim=1).indices
         for layer in range(len(patch_tokens)):
-            selected_tokens = patch_tokens[layer]. \
-                gather(dim=1, index=top_k_indices.unsqueeze(-1).
-                       expand(-1, -1, patch_tokens[layer].shape[-1]))
+            selected_tokens = patch_tokens[layer].gather(
+                dim=1,
+                index=top_k_indices.unsqueeze(-1).expand(-1, -1, patch_tokens[layer].shape[-1]),
+            )
             selected_abnormal_tokens.append(selected_tokens)
 
         # use kmeans to extract these centriods
@@ -262,7 +340,9 @@ class HybridSemanticFusion(nn.Module):
         batch_cluster_centers = []
         # Perform K-Means clustering
         for b in range(stacked_data.shape[0]):
-            cluster_labels = self.cluster_performer.fit_predict(stacked_data[b, :, :].detach().cpu().numpy())
+            cluster_labels = self.cluster_performer.fit_predict(
+                stacked_data[b, :, :].detach().cpu().numpy()
+            )
 
             # Initialize a list to store the cluster centers
             cluster_centers = []
@@ -331,11 +411,23 @@ class HybridSemanticFusion(nn.Module):
 
         # return cluster_centroids
 
+
 class AdaCLIP(nn.Module):
-    def __init__(self, freeze_clip: CLIP, text_channel: int, visual_channel: int,
-                 prompting_length: int, prompting_depth: int, prompting_branch: str, prompting_type: str,
-                 use_hsf: bool, k_clusters: int,
-                 output_layers: list, device: str, image_size: int):
+    def __init__(
+        self,
+        freeze_clip: CLIP,
+        text_channel: int,
+        visual_channel: int,
+        prompting_length: int,
+        prompting_depth: int,
+        prompting_branch: str,
+        prompting_type: str,
+        use_hsf: bool,
+        k_clusters: int,
+        output_layers: list,
+        device: str,
+        image_size: int,
+    ):
         super(AdaCLIP, self).__init__()
         self.freeze_clip = freeze_clip
 
@@ -356,53 +448,69 @@ class AdaCLIP(nn.Module):
         self.use_hsf = use_hsf
         self.k_clusters = k_clusters
 
-        if 'L' in self.prompting_branch:
+        if "L" in self.prompting_branch:
             self.enable_text_prompt = True
         else:
             self.enable_text_prompt = False
 
-        if 'V' in self.prompting_branch:
+        if "V" in self.prompting_branch:
             self.enable_visual_prompt = True
         else:
             self.enable_visual_prompt = False
 
         self.text_embedding_layer = TextEmbebddingLayer(fixed=(not self.enable_text_prompt))
-        self.text_prompter = PromptLayer(text_channel, prompting_length, prompting_depth, is_text=True,
-                                         prompting_type=prompting_type,
-                                         enabled=self.enable_text_prompt)
-        self.visual_prompter = PromptLayer(visual_channel, prompting_length, prompting_depth, is_text=False,
-                                           prompting_type=prompting_type,
-                                           enabled=self.enable_visual_prompt)
+        self.text_prompter = PromptLayer(
+            text_channel,
+            prompting_length,
+            prompting_depth,
+            is_text=True,
+            prompting_type=prompting_type,
+            enabled=self.enable_text_prompt,
+        )
+        self.visual_prompter = PromptLayer(
+            visual_channel,
+            prompting_length,
+            prompting_depth,
+            is_text=False,
+            prompting_type=prompting_type,
+            enabled=self.enable_visual_prompt,
+        )
 
         self.patch_token_layer = ProjectLayer(
-            visual_channel,
-            text_channel,
-            len(output_layers), stack=False, is_array=True
+            visual_channel, text_channel, len(output_layers), stack=False, is_array=True
         )
 
         self.cls_token_layer = ProjectLayer(
-            text_channel,
-            text_channel,
-            1, stack=False, is_array=False
+            text_channel, text_channel, 1, stack=False, is_array=False
         )
 
-        if 'D' in self.prompting_type: # dynamic prompts
-            self.dynamic_visual_prompt_generator = ProjectLayer(text_channel,
-                                                                visual_channel,
-                                                                prompting_length,
-                                                                stack=True,
-                                                                is_array=False)
-            self.dynamic_text_prompt_generator = ProjectLayer(text_channel,
-                                                              text_channel,
-                                                              prompting_length,
-                                                              stack=True,
-                                                              is_array=False)
+        if "D" in self.prompting_type:  # dynamic prompts
+            self.dynamic_visual_prompt_generator = ProjectLayer(
+                text_channel, visual_channel, prompting_length, stack=True, is_array=False
+            )
+            self.dynamic_text_prompt_generator = ProjectLayer(
+                text_channel, text_channel, prompting_length, stack=True, is_array=False
+            )
 
         if self.use_hsf:
             self.HSF = HybridSemanticFusion(k_clusters)
 
         self.image_size = image_size
-        self.device = device
+        # Store initial device hint but prefer using current_device property
+        self._init_device = device
+
+    @property
+    def device(self) -> str:
+        """Dynamically discover device from model parameters.
+
+        This ensures correct device after .to() calls on the model or pipeline.
+        Falls back to the init device hint if no parameters exist yet.
+        """
+        for param in self.parameters():
+            return str(param.device)
+        for buf in self.buffers():
+            return str(buf.device)
+        return self._init_device
 
     def generate_and_set_dynamic_promtps(self, image):
         with torch.no_grad():
@@ -415,18 +523,19 @@ class AdaCLIP(nn.Module):
         self.visual_prompter.set_dynamic_prompts(dynamic_visual_prompts)
         self.text_prompter.set_dynamic_prompts(dynamic_text_prompts)
 
-
     def encode_image(self, image):
-
         x = image
         # to patches - whether to use dual patchnorm - https://arxiv.org/abs/2302.01327v1
         if self.visual.input_patchnorm:
             # einops - rearrange(x, 'b c (h p1) (w p2) -> b (h w) (c p1 p2)')
-            x = x.reshape(x.shape[0], x.shape[1],
-                          self.visual.grid_size[0],
-                          self.visual.patch_size[0],
-                          self.visual.grid_size[1],
-                          self.visual.patch_size[1])
+            x = x.reshape(
+                x.shape[0],
+                x.shape[1],
+                self.visual.grid_size[0],
+                self.visual.patch_size[0],
+                self.visual.grid_size[1],
+                self.visual.patch_size[1],
+            )
             x = x.permute(0, 2, 4, 1, 3, 5)
             x = x.reshape(x.shape[0], self.visual.grid_size[0] * self.visual.grid_size[1], -1)
             x = self.visual.patchnorm_pre_ln(x)
@@ -438,9 +547,13 @@ class AdaCLIP(nn.Module):
 
         # class embeddings and positional embeddings
         x = torch.cat(
-            [self.visual.class_embedding.to(x.dtype) +
-             torch.zeros(x.shape[0], 1, x.shape[-1], dtype=x.dtype, device=x.device),
-             x], dim=1)  # shape = [*, grid ** 2 + 1, width]
+            [
+                self.visual.class_embedding.to(x.dtype)
+                + torch.zeros(x.shape[0], 1, x.shape[-1], dtype=x.dtype, device=x.device),
+                x,
+            ],
+            dim=1,
+        )  # shape = [*, grid ** 2 + 1, width]
 
         x = x + self.visual.positional_embedding.to(x.dtype)
 
@@ -455,13 +568,17 @@ class AdaCLIP(nn.Module):
         patch_tokens = []
 
         for indx, r in enumerate(self.visual.transformer.resblocks):
-            x, tokens, attn_tmp = self.visual_prompter(r, indx, x, k_x=None, v_x=None, attn_mask=None)
+            x, tokens, attn_tmp = self.visual_prompter(
+                r, indx, x, k_x=None, v_x=None, attn_mask=None
+            )
 
             if (indx + 1) in self.output_layers:
                 patch_tokens.append(tokens)
 
         x = x.permute(1, 0, 2)  # LND -> NLD
-        patch_tokens = [patch_tokens[t].permute(1, 0, 2) for t in range(len(patch_tokens))]  # LND -> NLD
+        patch_tokens = [
+            patch_tokens[t].permute(1, 0, 2) for t in range(len(patch_tokens))
+        ]  # LND -> NLD
 
         if self.visual.attn_pool is not None:
             x = self.visual.attn_pool(x)
@@ -477,12 +594,13 @@ class AdaCLIP(nn.Module):
         return pooled, patch_tokens, patch_embedding
 
     def proj_visual_tokens(self, image_features, patch_tokens):
-
         # for patch tokens
         proj_patch_tokens = self.patch_token_layer(patch_tokens)
         for layer in range(len(proj_patch_tokens)):
-            #proj_patch_tokens[layer] /= proj_patch_tokens[layer].norm(dim=-1, keepdim=True)
-            proj_patch_tokens[layer] = proj_patch_tokens[layer] / proj_patch_tokens[layer].norm(dim=-1, keepdim=True)
+            # proj_patch_tokens[layer] /= proj_patch_tokens[layer].norm(dim=-1, keepdim=True)
+            proj_patch_tokens[layer] = proj_patch_tokens[layer] / proj_patch_tokens[layer].norm(
+                dim=-1, keepdim=True
+            )
 
         # for cls tokens
         proj_cls_tokens = self.cls_token_layer(image_features)[0]
@@ -500,7 +618,9 @@ class AdaCLIP(nn.Module):
 
         for indx, r in enumerate(self.transformer.resblocks):
             # add prompt here
-            x, attn_tmp = self.text_prompter(r, indx, x, k_x=None, v_x=None, attn_mask=self.attn_mask)
+            x, attn_tmp = self.text_prompter(
+                r, indx, x, k_x=None, v_x=None, attn_mask=self.attn_mask
+            )
 
         x = x.permute(1, 0, 2)  # LND -> NLD
         x = self.ln_final(x)  # [batch_size, n_ctx, transformer.width]
@@ -513,7 +633,7 @@ class AdaCLIP(nn.Module):
         anomaly_maps = []
 
         for layer in range(len(patch_token)):
-            anomaly_map = (100.0 * patch_token[layer] @ text_feature)
+            anomaly_map = 100.0 * patch_token[layer] @ text_feature
             anomaly_maps.append(anomaly_map)
 
         if self.use_hsf:
@@ -525,7 +645,7 @@ class AdaCLIP(nn.Module):
         else:
             cur_image_feature = image_feature
 
-        anomaly_score = (100.0 * cur_image_feature.unsqueeze(1) @ text_feature)
+        anomaly_score = 100.0 * cur_image_feature.unsqueeze(1) @ text_feature
         anomaly_score = anomaly_score.squeeze(1)
         anomaly_score = torch.softmax(anomaly_score, dim=1)
 
@@ -534,22 +654,26 @@ class AdaCLIP(nn.Module):
             B, L, C = anomaly_maps[i].shape
             H = int(np.sqrt(L))
             anomaly_maps[i] = anomaly_maps[i].permute(0, 2, 1).view(B, 2, H, H)
-            anomaly_maps[i] = F.interpolate(anomaly_maps[i], size=self.image_size, mode='bilinear', align_corners=True)
+            anomaly_maps[i] = F.interpolate(
+                anomaly_maps[i], size=self.image_size, mode="bilinear", align_corners=True
+            )
 
-        if aggregation: # in the test stage, we firstly aggregate logits from all hierarchies and then do the softmax normalization
+        if aggregation:  # in the test stage, we firstly aggregate logits from all hierarchies and then do the softmax normalization
             anomaly_map = torch.mean(torch.stack(anomaly_maps, dim=1), dim=1)
             anomaly_map = torch.softmax(anomaly_map, dim=1)
             anomaly_map = (anomaly_map[:, 1:, :, :] + 1 - anomaly_map[:, 0:1, :, :]) / 2.0
             anomaly_score = anomaly_score[:, 1]
             return anomaly_map, anomaly_score
-        else: # otherwise, we do the softmax normalization for individual hierarchies
+        else:  # otherwise, we do the softmax normalization for individual hierarchies
             for i in range(len(anomaly_maps)):
                 anomaly_maps[i] = torch.softmax(anomaly_maps[i], dim=1)
             return anomaly_maps, anomaly_score
 
     def extract_feat(self, image, cls_name):
-        if 'D' in self.prompting_type:
-            self.generate_and_set_dynamic_promtps(image) # generate and set dynamic prompts for corresponding prompters
+        if "D" in self.prompting_type:
+            self.generate_and_set_dynamic_promtps(
+                image
+            )  # generate and set dynamic prompts for corresponding prompters
 
         if self.enable_visual_prompt:
             image_features, patch_tokens, _ = self.encode_image(image)
@@ -567,21 +691,22 @@ class AdaCLIP(nn.Module):
 
         return proj_cls_tokens, proj_patch_tokens, text_features
 
-    @torch.cuda.amp.autocast()
+    # @torch.cuda.amp.autocast()
     def forward(self, image, cls_name, aggregation=True):
         # extract features for images and texts
         image_features, patch_tokens, text_features = self.extract_feat(image, cls_name)
-        anomaly_map, anomaly_score = self.visual_text_similarity(image_features, patch_tokens, text_features, aggregation)
+        anomaly_map, anomaly_score = self.visual_text_similarity(
+            image_features, patch_tokens, text_features, aggregation
+        )
 
         if aggregation:
-            anomaly_map = anomaly_map # tensor
+            anomaly_map = anomaly_map  # tensor
             anomaly_score = anomaly_score
             anomaly_map = anomaly_map.squeeze(1)
 
             return anomaly_map, anomaly_score
         else:
-            anomaly_maps = anomaly_map # list
+            anomaly_maps = anomaly_map  # list
             anomaly_score = anomaly_score
 
             return anomaly_maps, anomaly_score
-
