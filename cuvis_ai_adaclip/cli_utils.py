@@ -66,9 +66,9 @@ class AdaCLIPCLI:
     def add_data_options(self, command):
         """Add common data configuration options to a Click command."""
         options = [
-            click.option("--cu3s-file-path", type=str, default="C:/Users/anish.raj/projects/gitlab_cuvis_ai_3/cuvis.ai/data/Lentils/Lentils_000.cu3s",
-                        help="Path to CU3S file"),
-            click.option("--annotation-json-path", type=str, default="C:/Users/anish.raj/projects/gitlab_cuvis_ai_3/cuvis.ai/data/Lentils/Lentils_000.json",
+            click.option("--cu3s-file-path", type=str,  default="data/DemoData/Demo_000.cu3s", 
+                         help="Path to CU3S file"),
+            click.option("--annotation-json-path", type=str, default="data/DemoData/Demo_000.json",
                         help="Path to annotation JSON file"),
             click.option("--train-ids", type=str, default="0,2",
                         help="Comma-separated train IDs"),

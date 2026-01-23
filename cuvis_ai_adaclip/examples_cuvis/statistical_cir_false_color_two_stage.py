@@ -12,7 +12,7 @@ from cuvis_ai_adaclip import (
     download_weights,
     list_available_weights,
 )
-from cuvis_ai.data.lentils_anomaly import SingleCu3sDataModule
+from cuvis_ai_core.data.datasets import SingleCu3sDataModule
 from cuvis_ai.deciders.two_stage_decider import TwoStageBinaryDecider
 from cuvis_ai.node.band_selection import CIRFalseColorSelector
 from cuvis_ai.node.data import LentilsAnomalyDataNode

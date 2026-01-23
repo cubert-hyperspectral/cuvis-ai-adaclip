@@ -35,7 +35,7 @@ from cuvis_ai_adaclip import (
     download_weights,
     list_available_weights,
 )
-from cuvis_ai.data.lentils_anomaly import SingleCu3sDataModule
+from cuvis_ai_core.data.datasets import SingleCu3sDataModule
 from cuvis_ai.node.band_selection import (
     CIRFalseColorSelector,
     SupervisedCIRBandSelector,

@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=64"]
+requires = ["setuptools>=64", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "cuvis_ai_adaclip"
-version = "0.1.0"
+dynamic = ["version"]
 description = "AdaCLIP (ECCV 2024) with a cuvis.ai-compatible plugin package."
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
@@ -67,8 +67,8 @@ torch = { index = "pytorch-cu128" }
 torchvision = { index = "pytorch-cu128" }
 
 # Git-based dependencies (active)
-cuvis-ai = { git = "ssh://git@gitlab.cubert.local/cubert/cuvis-ai.git", branch = "nima/features/ALL-4976-repository-split-and-extension-mechanism-for-cuvis-ai" }
-cuvis-ai-core = { git = "ssh://git@gitlab.cubert.local/nghorbani/cuvis-ai-core.git", branch = "nima/features/ALL-4976-repository-split-and-extension-mechanism-for-cuvis-ai" }
+cuvis-ai = { git = "https://github.com/cubert-hyperspectral/cuvis-ai.git", tag = "v0.2.3" }
+cuvis-ai-core = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-core.git", tag = "v0.1.0" }
 
 # Local development alternatives (uncomment to use local paths instead)
 # cuvis-ai = { path = "../cuvis-ai", editable = true }
@@ -108,3 +108,12 @@ ignore = ["ANN401", "E501"]
 "test.py" = ["ALL"]
 "app.py" = ["ALL"]
 "loss.py" = ["ALL"]
+
+[tool.setuptools_scm]
+version_scheme = "post-release"
+local_scheme = "node-and-date"
+
+[dependency-groups]
+dev = [
+    "setuptools-scm>=9.2.2",
+]

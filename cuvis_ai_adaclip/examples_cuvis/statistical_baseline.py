@@ -23,7 +23,7 @@ from cuvis_ai_adaclip import (
 from cuvis_ai_adaclip.cli_utils import AdaCLIPCLI, AVAILABLE_BACKBONES
 from loguru import logger
 
-from cuvis_ai.data.lentils_anomaly import SingleCu3sDataModule
+from cuvis_ai_core.data.datasets import SingleCu3sDataModule
 from cuvis_ai.deciders.binary_decider import QuantileBinaryDecider
 from cuvis_ai.node.band_selection import BaselineFalseRGBSelector
 from cuvis_ai.node.data import LentilsAnomalyDataNode
