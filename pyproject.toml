@@ -17,14 +17,20 @@ dependencies = [
     "cuvis==3.5.0",
     "cuvis-ai",
     "cuvis-ai-core",
-
     # Extra dependencies specific to AdaCLIP usage that are not guaranteed by cuvis_ai.
-    # Note: ftfy is already a dependency of cuvis_ai, but we keep it here explicitly
-    # to mirror the original AdaCLIP requirements and make the plugin self-explanatory.
+    # Note: Some dependencies like numpy and scikit-image are provided by cuvis-ai-core.
+    # Torch/torchvision are aligned with cuvis-ai-core (>=2.9.1, pytorch-cu128).
+    "tqdm",
+    "tensorboard",
+    "opencv-python",
+    "scikit-learn",
+    "matplotlib",
     "ftfy",
     "seaborn",
-    "click",  # For CLI interface
-
+    "regex",
+    "gradio",
+    "torchaudio",
+    "click", # For CLI interface
     # Original AdaCLIP requirements (kept here as comments for reference):
     # "torch==1.11.0",
     # "torchvision==0.11.2",
@@ -40,6 +46,7 @@ dependencies = [
     # "regex",
     # "numpy==1.26.4",
     # "gradio",
+    "pandas>=2.3.0",
 ]
 
 [project.optional-dependencies]
