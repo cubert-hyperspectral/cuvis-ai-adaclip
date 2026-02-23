@@ -37,7 +37,7 @@ For developers working directly with the code:
 
 ```python
 from cuvis_ai_adaclip import AdaCLIPDetector, download_weights
-from cuvis_ai.node.band_selection import CIRFalseColorSelector
+from cuvis_ai.node.channel_selector import CIRSelector
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
 # Download weights
@@ -45,7 +45,7 @@ download_weights("pretrained_all")
 
 # Create pipeline
 pipeline = CuvisPipeline("adaclip_pipeline")
-band_selector = CIRFalseColorSelector(nir_nm=860.0, red_nm=670.0, green_nm=560.0)
+band_selector = CIRSelector(nir_nm=860.0, red_nm=670.0, green_nm=560.0)
 adaclip = AdaCLIPDetector(
     weight_name="pretrained_all",
     backbone="ViT-L-14-336",

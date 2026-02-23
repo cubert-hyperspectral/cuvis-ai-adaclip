@@ -6,8 +6,8 @@ nodes:
     normal_class_ids:
     - 0
     - 1
-- name: CIRFalseColorSelector
-  class: cuvis_ai.node.band_selection.CIRFalseColorSelector
+- name: CIRSelector
+  class: cuvis_ai.node.channel_selector.CIRSelector
   params:
     nir_nm: 860.0
     red_nm: 670.0
@@ -34,13 +34,13 @@ nodes:
     quantile: 0.995
     reduce_dims: null
 - name: ScoreHeatmapVisualizer
-  class: cuvis_ai.node.visualizations.ScoreHeatmapVisualizer
+  class: cuvis_ai.node.anomaly_visualization.ScoreHeatmapVisualizer
   params:
     normalize_scores: true
     cmap: inferno
     up_to: 3
 - name: RGBAnomalyMask
-  class: cuvis_ai.node.visualizations.RGBAnomalyMask
+  class: cuvis_ai.node.anomaly_visualization.RGBAnomalyMask
   params:
     up_to: 3
 - name: detection_metrics
@@ -56,16 +56,16 @@ nodes:
     flush_secs: 120
 connections:
 - from: LentilsAnomalyDataNode.outputs.cube
-  to: CIRFalseColorSelector.inputs.cube
+  to: CIRSelector.inputs.cube
 - from: LentilsAnomalyDataNode.outputs.wavelengths
-  to: CIRFalseColorSelector.inputs.wavelengths
+  to: CIRSelector.inputs.wavelengths
 - from: LentilsAnomalyDataNode.outputs.mask
   to: detection_metrics.inputs.targets
 - from: LentilsAnomalyDataNode.outputs.mask
   to: RGBAnomalyMask.inputs.mask
-- from: CIRFalseColorSelector.outputs.rgb_image
+- from: CIRSelector.outputs.rgb_image
   to: AdaCLIPDetector.inputs.rgb_image
-- from: CIRFalseColorSelector.outputs.rgb_image
+- from: CIRSelector.outputs.rgb_image
   to: RGBAnomalyMask.inputs.rgb_image
 - from: AdaCLIPDetector.outputs.scores
   to: TwoStageBinaryDecider.inputs.logits
@@ -87,7 +87,7 @@ frozen_nodes: []
 metadata:
   name: AdaCLIP_CIR_FalseColor_OptimalThreshold
   description: "Statistical AdaCLIP CIR false-color pipeline with optimal threshold\
-    \ (LentilsAnomalyDataNode \u2192 CIRFalseColorSelector \u2192 AdaCLIPDetector\
+    \ (LentilsAnomalyDataNode \u2192 CIRSelector \u2192 AdaCLIPDetector\
     \ \u2192 TwoStageBinaryDecider)"
   created: ''
   tags:

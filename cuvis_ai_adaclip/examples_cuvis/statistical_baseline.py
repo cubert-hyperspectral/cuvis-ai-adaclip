@@ -5,8 +5,8 @@ It uses fixed target wavelengths (650/550/450 nm) for R/G/B channels.
 
 It:
   * Builds a CuvisPipeline explicitly.
-  * Uses LentilsAnomalyDataNode → BaselineFalseRGBSelector → AdaCLIPDetector.
-  * BaselineFalseRGBSelector uses fixed target wavelengths (650/550/450 nm) for R/G/B.
+  * Uses LentilsAnomalyDataNode → FixedWavelengthSelector → AdaCLIPDetector.
+  * FixedWavelengthSelector uses fixed target wavelengths (650/550/450 nm) for R/G/B.
   * Adds a quantile-based decider, generic anomaly metrics, and visualizations.
   * Logs everything via TensorBoardMonitorNode and saves the pipeline + experiment config.
 """
@@ -17,11 +17,11 @@ from pathlib import Path
 
 import click
 from cuvis_ai.deciders.binary_decider import QuantileBinaryDecider
-from cuvis_ai.node.band_selection import BaselineFalseRGBSelector
+from cuvis_ai.node.anomaly_visualization import RGBAnomalyMask, ScoreHeatmapVisualizer
+from cuvis_ai.node.channel_selector import FixedWavelengthSelector
 from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
-from cuvis_ai.node.visualizations import RGBAnomalyMask, ScoreHeatmapVisualizer
 from cuvis_ai_core.data.datasets import SingleCu3sDataModule
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_core.training import StatisticalTrainer
@@ -92,7 +92,7 @@ def main(**kwargs) -> None:
         name="lentils_data_node",
         normal_class_ids=normal_class_ids,
     )
-    band_selector = BaselineFalseRGBSelector(
+    band_selector = FixedWavelengthSelector(
         name="baseline_rgb_selector", target_wavelengths=target_wavelengths
     )
 
@@ -186,7 +186,7 @@ def main(**kwargs) -> None:
         name=pipeline.name,
         description=(
             "Statistical AdaCLIP baseline pipeline "
-            "(LentilsAnomalyDataNode → BaselineFalseRGBSelector → AdaCLIPDetector)"
+            "(LentilsAnomalyDataNode → FixedWavelengthSelector → AdaCLIPDetector)"
         ),
         tags=["statistical", "adaclip", "baseline"],
         author="cuvis.ai",

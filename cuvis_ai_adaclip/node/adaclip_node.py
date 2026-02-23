@@ -17,8 +17,8 @@ from typing import Any
 import numpy as np
 import torch
 from cuvis_ai_core.node.node import Node
-from cuvis_ai_core.pipeline.ports import PortSpec
-from cuvis_ai_core.utils.types import Context
+from cuvis_ai_schemas.execution import Context
+from cuvis_ai_schemas.pipeline import PortSpec
 from PIL import Image
 from torchvision.transforms import Compose
 

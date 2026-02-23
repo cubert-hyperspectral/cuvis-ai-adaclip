@@ -6,8 +6,8 @@ nodes:
     normal_class_ids:
     - 0
     - 1
-- name: HighContrastBandSelector
-  class: cuvis_ai.node.band_selection.HighContrastBandSelector
+- name: HighContrastSelector
+  class: cuvis_ai.node.channel_selector.HighContrastSelector
   params:
     windows: !!python/tuple
     - !!python/tuple
@@ -39,13 +39,13 @@ nodes:
     quantile: 0.995
     reduce_dims: null
 - name: ScoreHeatmapVisualizer
-  class: cuvis_ai.node.visualizations.ScoreHeatmapVisualizer
+  class: cuvis_ai.node.anomaly_visualization.ScoreHeatmapVisualizer
   params:
     normalize_scores: true
     cmap: inferno
     up_to: 3
 - name: RGBAnomalyMask
-  class: cuvis_ai.node.visualizations.RGBAnomalyMask
+  class: cuvis_ai.node.anomaly_visualization.RGBAnomalyMask
   params:
     up_to: 3
 - name: detection_metrics
@@ -61,16 +61,16 @@ nodes:
     flush_secs: 120
 connections:
 - from: LentilsAnomalyDataNode.outputs.cube
-  to: HighContrastBandSelector.inputs.cube
+  to: HighContrastSelector.inputs.cube
 - from: LentilsAnomalyDataNode.outputs.wavelengths
-  to: HighContrastBandSelector.inputs.wavelengths
+  to: HighContrastSelector.inputs.wavelengths
 - from: LentilsAnomalyDataNode.outputs.mask
   to: detection_metrics.inputs.targets
 - from: LentilsAnomalyDataNode.outputs.mask
   to: RGBAnomalyMask.inputs.mask
-- from: HighContrastBandSelector.outputs.rgb_image
+- from: HighContrastSelector.outputs.rgb_image
   to: AdaCLIPDetector.inputs.rgb_image
-- from: HighContrastBandSelector.outputs.rgb_image
+- from: HighContrastSelector.outputs.rgb_image
   to: RGBAnomalyMask.inputs.rgb_image
 - from: AdaCLIPDetector.outputs.scores
   to: QuantileBinaryDecider.inputs.logits
@@ -92,7 +92,7 @@ frozen_nodes: []
 metadata:
   name: AdaCLIP_HighContrast
   description: "Statistical AdaCLIP high-contrast pipeline (LentilsAnomalyDataNode\
-    \ \u2192 HighContrastBandSelector \u2192 AdaCLIPDetector)"
+    \ \u2192 HighContrastSelector \u2192 AdaCLIPDetector)"
   created: ''
   tags:
   - statistical

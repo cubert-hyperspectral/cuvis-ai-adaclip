@@ -6,8 +6,8 @@ nodes:
     normal_class_ids:
     - 0
     - 1
-- name: SupervisedCIRBandSelector
-  class: cuvis_ai.node.band_selection.SupervisedCIRBandSelector
+- name: SupervisedCIRSelector
+  class: cuvis_ai.node.channel_selector.SupervisedCIRSelector
   params:
     windows:
     - !!python/tuple
@@ -44,13 +44,13 @@ nodes:
     quantile: 0.995
     reduce_dims: null
 - name: ScoreHeatmapVisualizer
-  class: cuvis_ai.node.visualizations.ScoreHeatmapVisualizer
+  class: cuvis_ai.node.anomaly_visualization.ScoreHeatmapVisualizer
   params:
     normalize_scores: true
     cmap: inferno
     up_to: 3
 - name: RGBAnomalyMask
-  class: cuvis_ai.node.visualizations.RGBAnomalyMask
+  class: cuvis_ai.node.anomaly_visualization.RGBAnomalyMask
   params:
     up_to: 3
 - name: detection_metrics
@@ -66,18 +66,18 @@ nodes:
     flush_secs: 120
 connections:
 - from: LentilsAnomalyDataNode.outputs.cube
-  to: SupervisedCIRBandSelector.inputs.cube
+  to: SupervisedCIRSelector.inputs.cube
 - from: LentilsAnomalyDataNode.outputs.wavelengths
-  to: SupervisedCIRBandSelector.inputs.wavelengths
+  to: SupervisedCIRSelector.inputs.wavelengths
 - from: LentilsAnomalyDataNode.outputs.mask
-  to: SupervisedCIRBandSelector.inputs.mask
+  to: SupervisedCIRSelector.inputs.mask
 - from: LentilsAnomalyDataNode.outputs.mask
   to: detection_metrics.inputs.targets
 - from: LentilsAnomalyDataNode.outputs.mask
   to: RGBAnomalyMask.inputs.mask
-- from: SupervisedCIRBandSelector.outputs.rgb_image
+- from: SupervisedCIRSelector.outputs.rgb_image
   to: AdaCLIPDetector.inputs.rgb_image
-- from: SupervisedCIRBandSelector.outputs.rgb_image
+- from: SupervisedCIRSelector.outputs.rgb_image
   to: RGBAnomalyMask.inputs.rgb_image
 - from: AdaCLIPDetector.outputs.scores
   to: QuantileBinaryDecider.inputs.logits
@@ -99,7 +99,7 @@ frozen_nodes: []
 metadata:
   name: AdaCLIP_Supervised_CIR
   description: "Statistical AdaCLIP supervised CIR pipeline (LentilsAnomalyDataNode\
-    \ \u2192 SupervisedCIRBandSelector \u2192 AdaCLIPDetector)"
+    \ \u2192 SupervisedCIRSelector \u2192 AdaCLIPDetector)"
   created: ''
   tags:
   - statistical

@@ -29,16 +29,16 @@ import click
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from cuvis_ai.node.band_selection import (
-    CIRFalseColorSelector,
-    SupervisedCIRBandSelector,
-    SupervisedFullSpectrumBandSelector,
+from cuvis_ai.node.channel_selector import (
+    CIRSelector,
+    SupervisedCIRSelector,
+    SupervisedFullSpectrumSelector,
 )
 from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai_core.data.datasets import SingleCu3sDataModule
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_core.training import StatisticalTrainer
-from cuvis_ai_core.utils.types import ExecutionStage
+from cuvis_ai_schemas.enums import ExecutionStage
 from loguru import logger
 from sklearn.metrics import f1_score, precision_recall_curve, roc_auc_score, roc_curve
 
@@ -192,11 +192,11 @@ def create_band_selector(
     if selector_type == "cir_false":
         if nir_nm is None or red_nm is None or green_nm is None:
             raise ValueError("nir_nm, red_nm, and green_nm required for cir_false selector")
-        return CIRFalseColorSelector(nir_nm=nir_nm, red_nm=red_nm, green_nm=green_nm)
+        return CIRSelector(nir_nm=nir_nm, red_nm=red_nm, green_nm=green_nm)
     elif selector_type == "supervised_cir":
-        return SupervisedCIRBandSelector(num_spectral_bands=num_spectral_bands)
+        return SupervisedCIRSelector(num_spectral_bands=num_spectral_bands)
     elif selector_type == "supervised_full":
-        return SupervisedFullSpectrumBandSelector(num_spectral_bands=num_spectral_bands)
+        return SupervisedFullSpectrumSelector(num_spectral_bands=num_spectral_bands)
     else:
         raise ValueError(f"Unknown selector type: {selector_type}")
 

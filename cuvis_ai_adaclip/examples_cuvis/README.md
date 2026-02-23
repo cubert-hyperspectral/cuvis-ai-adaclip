@@ -36,20 +36,7 @@ uv run python .\cuvis_ai_adaclip\examples_cuvis\statistical_baseline.py --backbo
 - Baseline performance comparison
 - Simple statistical pipeline
 
-### 2. Channel Selector with Gradient Training
-**File**: `statistical_adaclip_channel_selector.py`
-
-```bash
-uv run python .\cuvis_ai_adaclip\examples_cuvis\statistical_adaclip_channel_selector.py --backbone-name ViT-L-14-336 --pretrained-adaclip pretrained_all --visualize-upto 3
-```
-
-**Features**:
-- Learnable SoftChannelSelector (61→3 channels)
-- Two-phase training: statistical initialization + gradient training
-- RX comparison branch
-- Advanced channel optimization
-
-### 3. CIR False-Color (NIR-Red-Green)
+### 2. CIR False-Color (NIR-Red-Green)
 **File**: `statistical_cir_false_color.py`
 
 ```bash
@@ -61,7 +48,7 @@ uv run python .\cuvis_ai_adaclip\examples_cuvis\statistical_cir_false_color.py -
 - Default wavelengths: NIR=850nm, Red=650nm, Green=550nm
 - Vegetation analysis optimized
 
-### 4. CIR False-RG Color
+### 3. CIR False-RG Color
 **File**: `statistical_cir_false_rg_color.py`
 
 ```bash
@@ -73,7 +60,7 @@ uv run python .\cuvis_ai_adaclip\examples_cuvis\statistical_cir_false_rg_color.p
 - Default wavelengths: NIR=860nm, Red=670nm, Green=450nm
 - Enhanced vegetation contrast
 
-### 5. High-Contrast Band Selection
+### 4. High-Contrast Band Selection
 **File**: `statistical_high_contrast.py`
 
 ```bash
@@ -85,7 +72,7 @@ uv run python .\cuvis_ai_adaclip\examples_cuvis\statistical_high_contrast.py --b
 - Windowed spectral analysis
 - Automatic high-contrast band detection
 
-### 6. Supervised CIR (Windowed mRMR)
+### 5. Supervised CIR (Windowed mRMR)
 **File**: `statistical_supervised_cir.py`
 
 ```bash
@@ -98,7 +85,7 @@ uv run python .\cuvis_ai_adaclip\examples_cuvis\statistical_supervised_cir.py --
 - Windowed spectral optimization
 - Requires ground-truth masks
 
-### 7. Supervised Full-Spectrum
+### 6. Supervised Full-Spectrum
 **File**: `statistical_supervised_full_spectrum.py`
 
 ```bash
@@ -111,7 +98,7 @@ uv run python .\cuvis_ai_adaclip\examples_cuvis\statistical_supervised_full_spec
 - Supervised learning with ground-truth
 - Optimal band combination discovery
 
-### 8. Supervised Windowed False-RGB
+### 7. Supervised Windowed False-RGB
 **File**: `statistical_supervised_windowed_false_rgb.py`
 
 ```bash
@@ -199,7 +186,6 @@ Use `--visualize-upto` to control the number of visualization outputs:
 | Example | Strategy | Learning Type | Ground Truth Required |
 |---------|----------|---------------|-----------------------|
 | Baseline | Fixed wavelengths | None | ❌ |
-| Channel Selector | Learnable weights | Gradient | ❌ |
 | CIR False-Color | Fixed CIR mapping | None | ❌ |
 | High-Contrast | Variance + Laplacian | Statistical | ❌ |
 | Supervised CIR | mRMR scoring | Statistical | ✅ |

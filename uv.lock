@@ -282,15 +282,15 @@ wheels = [
 
 [[package]]
 name = "cuvis-ai"
-version = "0.2.3"
-source = { git = "https://github.com/cubert-hyperspectral/cuvis-ai.git?tag=v0.2.3#10ce4fd21c82b825115dd22c528a775284614995" }
+version = "0.3.0.post13+g49e12de73"
+source = { git = "https://github.com/cubert-hyperspectral/cuvis-ai.git?branch=nima%2Ffeatures%2Fconsolidation#49e12de7395f5d33c2055c66c0a8be0774a2fcc2" }
 dependencies = [
     { name = "cuvis" },
     { name = "cuvis-ai-core" },
+    { name = "cuvis-ai-schemas", extra = ["full"] },
     { name = "dotenv" },
     { name = "ftfy" },
     { name = "gitpython" },
-    { name = "graphviz" },
     { name = "hf-xet" },
     { name = "huggingface-hub" },
     { name = "hydra-core" },
@@ -352,8 +352,8 @@ dev = [
 requires-dist = [
     { name = "click" },
     { name = "cuvis", specifier = "==3.5.0" },
-    { name = "cuvis-ai", git = "https://github.com/cubert-hyperspectral/cuvis-ai.git?tag=v0.2.3" },
-    { name = "cuvis-ai-core", git = "https://github.com/cubert-hyperspectral/cuvis-ai-core.git?tag=v0.1.0" },
+    { name = "cuvis-ai", git = "https://github.com/cubert-hyperspectral/cuvis-ai.git?branch=nima%2Ffeatures%2Fconsolidation" },
+    { name = "cuvis-ai-core", git = "https://github.com/cubert-hyperspectral/cuvis-ai-core.git?branch=nima%2Ffeatures%2Fconsolidation" },
     { name = "ftfy" },
     { name = "gradio" },
     { name = "ipython", marker = "extra == 'dev'" },
@@ -376,14 +376,16 @@ dev = [{ name = "setuptools-scm", specifier = ">=9.2.2" }]
 
 [[package]]
 name = "cuvis-ai-core"
-version = "0.1.0"
-source = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-core.git?tag=v0.1.0#28e9ab71040a432e1247afff77106a4260ecfc10" }
+version = "0.1.3.post3+g82603e31e"
+source = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-core.git?branch=nima%2Ffeatures%2Fconsolidation#82603e31ee56b65859ec6af2f1bfe9196ca3d9f5" }
 dependencies = [
     { name = "cuvis" },
+    { name = "cuvis-ai-schemas" },
     { name = "dataclass-wizard" },
     { name = "dotenv" },
     { name = "gdown" },
     { name = "gitpython" },
+    { name = "graphviz" },
     { name = "grpcio" },
     { name = "grpcio-health-checking" },
     { name = "hydra-core" },
@@ -401,6 +403,26 @@ dependencies = [
     { name = "torch" },
     { name = "torchvision" },
     { name = "typing-extensions" },
+]
+
+[[package]]
+name = "cuvis-ai-schemas"
+version = "0.1.3.post5+g97c807401"
+source = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-schemas.git?branch=main#97c8074017b0b1389bbff5fa28d7ef522a4fc8de" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "pyyaml" },
+]
+
+[package.optional-dependencies]
+full = [
+    { name = "grpcio" },
+    { name = "grpcio-tools" },
+    { name = "numpy" },
+    { name = "protobuf" },
+    { name = "pytorch-lightning" },
+    { name = "torch" },
+    { name = "torchvision" },
 ]
 
 [[package]]
@@ -709,6 +731,29 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/3e/96/5a52dcf21078b47ffa0c2ed613c3153a06f138edb6133792bace5f1ccc1d/grpcio_health_checking-1.76.0.tar.gz", hash = "sha256:b7a99d74096b3ab3a59987fc02374068e1c180a352e8d1f79f10e5a23727098d", size = 16784, upload-time = "2025-10-21T16:28:55.204Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/65/e6/746dffa51399827e38bb3f3f1ad656a3d8c1255039b256a6f76593368768/grpcio_health_checking-1.76.0-py3-none-any.whl", hash = "sha256:9743f345a855ba030cc7c381361606870b79d33bb71d7756efa47b6faa970f81", size = 18910, upload-time = "2025-10-21T16:27:26.332Z" },
+]
+
+[[package]]
+name = "grpcio-tools"
+version = "1.76.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "grpcio" },
+    { name = "protobuf" },
+    { name = "setuptools" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a0/77/17d60d636ccd86a0db0eccc24d02967bbc3eea86b9db7324b04507ebaa40/grpcio_tools-1.76.0.tar.gz", hash = "sha256:ce80169b5e6adf3e8302f3ebb6cb0c3a9f08089133abca4b76ad67f751f5ad88", size = 5390807, upload-time = "2025-10-21T16:26:55.416Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/73/d1/efbeed1a864c846228c0a3b322e7a2d6545f025e35246aebf96496a36004/grpcio_tools-1.76.0-cp311-cp311-linux_armv7l.whl", hash = "sha256:c6480f6af6833850a85cca1c6b435ef4ffd2ac8e88ef683b4065233827950243", size = 2545931, upload-time = "2025-10-21T16:24:50.201Z" },
+    { url = "https://files.pythonhosted.org/packages/af/8e/f257c0f565d9d44658301238b01a9353bc6f3b272bb4191faacae042579d/grpcio_tools-1.76.0-cp311-cp311-macosx_11_0_universal2.whl", hash = "sha256:c7c23fe1dc09818e16a48853477806ad77dd628b33996f78c05a293065f8210c", size = 5844794, upload-time = "2025-10-21T16:24:53.312Z" },
+    { url = "https://files.pythonhosted.org/packages/c7/c0/6c1e89c67356cb20e19ed670c5099b13e40fd678cac584c778f931666a86/grpcio_tools-1.76.0-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:fcdce7f7770ff052cd4e60161764b0b3498c909bde69138f8bd2e7b24a3ecd8f", size = 2591772, upload-time = "2025-10-21T16:24:55.729Z" },
+    { url = "https://files.pythonhosted.org/packages/c0/10/5f33aa7bc3ddaad0cfd2f4e950ac4f1a310e8d0c7b1358622a581e8b7a2f/grpcio_tools-1.76.0-cp311-cp311-manylinux2014_i686.manylinux_2_17_i686.whl", hash = "sha256:b598fdcebffa931c7da5c9e90b5805fff7e9bc6cf238319358a1b85704c57d33", size = 2905140, upload-time = "2025-10-21T16:24:57.952Z" },
+    { url = "https://files.pythonhosted.org/packages/f4/3e/23e3a52a77368f47188ed83c34eb53866d3ce0f73835b2f6764844ae89eb/grpcio_tools-1.76.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:6a9818ff884796b12dcf8db32126e40ec1098cacf5697f27af9cfccfca1c1fae", size = 2656475, upload-time = "2025-10-21T16:25:00.811Z" },
+    { url = "https://files.pythonhosted.org/packages/51/85/a74ae87ec7dbd3d2243881f5c548215aed1148660df7945be3a125ba9a21/grpcio_tools-1.76.0-cp311-cp311-musllinux_1_2_aarch64.whl", hash = "sha256:105e53435b2eed3961da543db44a2a34479d98d18ea248219856f30a0ca4646b", size = 3106158, upload-time = "2025-10-21T16:25:03.642Z" },
+    { url = "https://files.pythonhosted.org/packages/54/d5/a6ed1e5823bc5d55a1eb93e0c14ccee0b75951f914832ab51fb64d522a0f/grpcio_tools-1.76.0-cp311-cp311-musllinux_1_2_i686.whl", hash = "sha256:454a1232c7f99410d92fa9923c7851fd4cdaf657ee194eac73ea1fe21b406d6e", size = 3654980, upload-time = "2025-10-21T16:25:05.717Z" },
+    { url = "https://files.pythonhosted.org/packages/f9/29/c05d5501ba156a242079ef71d073116d2509c195b5e5e74c545f0a3a3a69/grpcio_tools-1.76.0-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:ca9ccf667afc0268d45ab202af4556c72e57ea36ebddc93535e1a25cbd4f8aba", size = 3322658, upload-time = "2025-10-21T16:25:07.885Z" },
+    { url = "https://files.pythonhosted.org/packages/02/b6/ee0317b91da19a7537d93c4161cbc2a45a165c8893209b0bbd470d830ffa/grpcio_tools-1.76.0-cp311-cp311-win32.whl", hash = "sha256:a83c87513b708228b4cad7619311daba65b40937745103cadca3db94a6472d9c", size = 993837, upload-time = "2025-10-21T16:25:10.133Z" },
+    { url = "https://files.pythonhosted.org/packages/81/63/9623cadf0406b264737f16d4ed273bb2d65001d87fbd803b565c45d665d1/grpcio_tools-1.76.0-cp311-cp311-win_amd64.whl", hash = "sha256:2ce5e87ec71f2e4041dce4351f2a8e3b713e3bca6b54c69c3fbc6c7ad1f4c386", size = 1158634, upload-time = "2025-10-21T16:25:12.705Z" },
 ]
 
 [[package]]

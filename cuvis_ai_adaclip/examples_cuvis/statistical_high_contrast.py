@@ -5,8 +5,8 @@ config in `configs/experiment/adaclip_high_contrast.yaml`.
 
 It:
   * Builds a CuvisPipeline explicitly.
-  * Uses LentilsAnomalyDataNode → HighContrastBandSelector → AdaCLIPDetector.
-  * HighContrastBandSelector selects bands with highest variance + Laplacian energy per window.
+  * Uses LentilsAnomalyDataNode → HighContrastSelector → AdaCLIPDetector.
+  * HighContrastSelector selects bands with highest variance + Laplacian energy per window.
   * Adds a quantile-based decider, generic anomaly metrics, and visualizations.
   * Logs everything via TensorBoardMonitorNode and saves the pipeline + experiment config.
 """
@@ -17,11 +17,11 @@ from pathlib import Path
 
 import click
 from cuvis_ai.deciders.binary_decider import QuantileBinaryDecider
-from cuvis_ai.node.band_selection import HighContrastBandSelector
+from cuvis_ai.node.anomaly_visualization import RGBAnomalyMask, ScoreHeatmapVisualizer
+from cuvis_ai.node.channel_selector import HighContrastSelector
 from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
-from cuvis_ai.node.visualizations import RGBAnomalyMask, ScoreHeatmapVisualizer
 from cuvis_ai_core.data.datasets import SingleCu3sDataModule
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_core.training import StatisticalTrainer
@@ -109,7 +109,7 @@ def main(**kwargs) -> None:
     data_node = LentilsAnomalyDataNode(
         normal_class_ids=[0, 1],
     )
-    band_selector = HighContrastBandSelector(windows=windows, alpha=alpha)
+    band_selector = HighContrastSelector(windows=windows, alpha=alpha)
 
     adaclip = AdaCLIPDetector(
         weight_name=weight_name,
@@ -177,7 +177,7 @@ def main(**kwargs) -> None:
         show_execution_stage=True,
     )
 
-    # No statistical fit is required for HighContrastBandSelector / AdaCLIP
+    # No statistical fit is required for HighContrastSelector / AdaCLIP
     # but we can still use StatisticalTrainer to run val/test passes.
     trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
 
@@ -198,7 +198,7 @@ def main(**kwargs) -> None:
         name=pipeline.name,
         description=(
             "Statistical AdaCLIP high-contrast pipeline "
-            "(LentilsAnomalyDataNode → HighContrastBandSelector → AdaCLIPDetector)"
+            "(LentilsAnomalyDataNode → HighContrastSelector → AdaCLIPDetector)"
         ),
         tags=["statistical", "adaclip", "high_contrast"],
         author="cuvis.ai",

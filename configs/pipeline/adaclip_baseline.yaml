@@ -8,7 +8,7 @@ nodes:
     - 1
     anomaly_class_ids: null
 - name: baseline_rgb_selector
-  class: cuvis_ai.node.band_selection.BaselineFalseRGBSelector
+  class: cuvis_ai.node.channel_selector.FixedWavelengthSelector
   params:
     target_wavelengths: !!python/tuple
     - 650.0
@@ -34,13 +34,13 @@ nodes:
     quantile: 0.995
     reduce_dims: null
 - name: score_heatmap_viz
-  class: cuvis_ai.node.visualizations.ScoreHeatmapVisualizer
+  class: cuvis_ai.node.anomaly_visualization.ScoreHeatmapVisualizer
   params:
     normalize_scores: true
     cmap: inferno
     up_to: 5
 - name: rgb_anomaly_mask_viz
-  class: cuvis_ai.node.visualizations.RGBAnomalyMask
+  class: cuvis_ai.node.anomaly_visualization.RGBAnomalyMask
   params:
     up_to: 5
 - name: anomaly_metrics
@@ -87,7 +87,7 @@ frozen_nodes: []
 metadata:
   name: AdaCLIP_Baseline
   description: "Statistical AdaCLIP baseline pipeline (LentilsAnomalyDataNode \u2192\
-    \ BaselineFalseRGBSelector \u2192 AdaCLIPDetector)"
+    \ FixedWavelengthSelector \u2192 AdaCLIPDetector)"
   created: ''
   tags:
   - statistical

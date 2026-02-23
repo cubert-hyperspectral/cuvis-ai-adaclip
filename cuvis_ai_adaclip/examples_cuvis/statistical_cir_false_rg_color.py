@@ -5,8 +5,8 @@ config in `configs/experiment/adaclip_cir_false_rg_color.yaml`.
 
 It:
   * Builds a CuvisPipeline explicitly.
-  * Uses LentilsAnomalyDataNode → CIRFalseColorSelector → AdaCLIPDetector.
-  * Configures CIRFalseColorSelector with NIR=860 nm, Red=670 nm, Green=450 nm (false RG).
+  * Uses LentilsAnomalyDataNode → CIRSelector → AdaCLIPDetector.
+  * Configures CIRSelector with NIR=860 nm, Red=670 nm, Green=450 nm (false RG).
   * Adds a quantile-based decider, generic anomaly metrics, and visualizations.
   * Logs everything via TensorBoardMonitorNode and saves the pipeline + experiment config.
 """
@@ -17,11 +17,11 @@ from pathlib import Path
 
 import click
 from cuvis_ai.deciders.binary_decider import QuantileBinaryDecider
-from cuvis_ai.node.band_selection import CIRFalseColorSelector
+from cuvis_ai.node.anomaly_visualization import RGBAnomalyMask, ScoreHeatmapVisualizer
+from cuvis_ai.node.channel_selector import CIRSelector
 from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
-from cuvis_ai.node.visualizations import RGBAnomalyMask, ScoreHeatmapVisualizer
 from cuvis_ai_core.data.datasets import SingleCu3sDataModule
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_core.training import StatisticalTrainer
@@ -114,7 +114,7 @@ def main(**kwargs) -> None:
     data_node = LentilsAnomalyDataNode(
         normal_class_ids=[0, 1],
     )
-    band_selector = CIRFalseColorSelector(nir_nm=nir_nm, red_nm=red_nm, green_nm=green_nm)
+    band_selector = CIRSelector(nir_nm=nir_nm, red_nm=red_nm, green_nm=green_nm)
 
     adaclip = AdaCLIPDetector(
         weight_name=weight_name,
@@ -182,7 +182,7 @@ def main(**kwargs) -> None:
         show_execution_stage=True,
     )
 
-    # No statistical fit is required for CIRFalseColorSelector / AdaCLIP
+    # No statistical fit is required for CIRSelector / AdaCLIP
     # but we can still use StatisticalTrainer to run val/test passes.
     trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
 
@@ -203,7 +203,7 @@ def main(**kwargs) -> None:
         name=pipeline.name,
         description=(
             "Statistical AdaCLIP CIR false-RG pipeline "
-            "(LentilsAnomalyDataNode → CIRFalseColorSelector → AdaCLIPDetector)"
+            "(LentilsAnomalyDataNode → CIRSelector → AdaCLIPDetector)"
         ),
         tags=["statistical", "adaclip", "cir_false_rg"],
         author="cuvis.ai",

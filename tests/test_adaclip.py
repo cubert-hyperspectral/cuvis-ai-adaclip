@@ -176,10 +176,10 @@ class TestBandSelection:
         return torch.linspace(400, 900, 100, dtype=torch.float32)
 
     def test_baseline_false_rgb_selector(self, sample_cube, sample_wavelengths) -> None:
-        """Test BaselineFalseRGBSelector node."""
-        from cuvis_ai.node import BaselineFalseRGBSelector
+        """Test FixedWavelengthSelector node."""
+        from cuvis_ai.node import FixedWavelengthSelector
 
-        selector = BaselineFalseRGBSelector(target_wavelengths=(650.0, 550.0, 450.0))
+        selector = FixedWavelengthSelector(target_wavelengths=(650.0, 550.0, 450.0))
 
         result = selector.forward(cube=sample_cube, wavelengths=sample_wavelengths)
 
@@ -191,11 +191,11 @@ class TestBandSelection:
         assert len(result["band_info"]["band_indices"]) == 3
 
     def test_high_contrast_band_selector(self, sample_cube, sample_wavelengths) -> None:
-        """Test HighContrastBandSelector node."""
-        from cuvis_ai.node import HighContrastBandSelector
+        """Test HighContrastSelector node."""
+        from cuvis_ai.node import HighContrastSelector
 
         windows = ((610, 700), (500, 580), (440, 500))
-        selector = HighContrastBandSelector(windows=windows, alpha=0.1)
+        selector = HighContrastSelector(windows=windows, alpha=0.1)
 
         result = selector.forward(cube=sample_cube, wavelengths=sample_wavelengths)
 
@@ -206,10 +206,10 @@ class TestBandSelection:
         assert len(result["band_info"]["band_indices"]) == 3
 
     def test_cir_false_color_selector(self, sample_cube, sample_wavelengths) -> None:
-        """Test CIRFalseColorSelector node."""
-        from cuvis_ai.node import CIRFalseColorSelector
+        """Test CIRSelector node."""
+        from cuvis_ai.node import CIRSelector
 
-        selector = CIRFalseColorSelector()
+        selector = CIRSelector()
 
         result = selector.forward(cube=sample_cube, wavelengths=sample_wavelengths)
 
@@ -225,9 +225,9 @@ class TestBandSelection:
 
     def test_band_selector_normalize_output(self, sample_cube, sample_wavelengths) -> None:
         """Test that band selector outputs are normalized to 0-1 range."""
-        from cuvis_ai.node import BaselineFalseRGBSelector
+        from cuvis_ai.node import FixedWavelengthSelector
 
-        selector = BaselineFalseRGBSelector()
+        selector = FixedWavelengthSelector()
         result = selector.forward(cube=sample_cube, wavelengths=sample_wavelengths)
 
         rgb = result["rgb_image"]
@@ -235,8 +235,8 @@ class TestBandSelection:
         assert rgb.max() <= 1.0
 
     def test_supervised_cir_selector_fit_and_forward(self) -> None:
-        """Test SupervisedCIRBandSelector fit() and forward()."""
-        from cuvis_ai.node import SupervisedCIRBandSelector
+        """Test SupervisedCIRSelector fit() and forward()."""
+        from cuvis_ai.node import SupervisedCIRSelector
 
         # Create synthetic training data
         wavelengths = torch.linspace(400.0, 900.0, 9, dtype=torch.float32)  # 9 bands
@@ -249,7 +249,7 @@ class TestBandSelection:
         def stream() -> Generator[dict[str, Any], None, None]:
             yield {"cube": cube_train, "mask": mask_train, "wavelengths": wavelengths}
 
-        selector = SupervisedCIRBandSelector(
+        selector = SupervisedCIRSelector(
             num_spectral_bands=9,
             windows=((840.0, 900.0), (650.0, 720.0), (500.0, 570.0)),
             score_weights=(1.0, 1.0, 1.0),
@@ -272,8 +272,8 @@ class TestBandSelection:
         assert len(band_indices) == 3
 
     def test_supervised_windowed_false_rgb_windows_respected(self) -> None:
-        """Test that SupervisedWindowedFalseRGBSelector picks one band per window."""
-        from cuvis_ai.node import SupervisedWindowedFalseRGBSelector
+        """Test that SupervisedWindowedSelector picks one band per window."""
+        from cuvis_ai.node import SupervisedWindowedSelector
 
         # Define 9 bands, 3 in each window
         wavelengths = torch.tensor(
@@ -288,7 +288,7 @@ class TestBandSelection:
             yield {"cube": cube_train, "mask": mask_train, "wavelengths": wavelengths}
 
         windows = ((440.0, 500.0), (500.0, 580.0), (610.0, 700.0))
-        selector = SupervisedWindowedFalseRGBSelector(
+        selector = SupervisedWindowedSelector(
             num_spectral_bands=9,
             windows=windows,
             score_weights=(1.0, 1.0, 1.0),
@@ -306,8 +306,8 @@ class TestBandSelection:
             assert start <= wl <= end
 
     def test_supervised_full_spectrum_selector_selects_three_bands(self) -> None:
-        """Test SupervisedFullSpectrumBandSelector selects 3 bands globally."""
-        from cuvis_ai.node import SupervisedFullSpectrumBandSelector
+        """Test SupervisedFullSpectrumSelector selects 3 bands globally."""
+        from cuvis_ai.node import SupervisedFullSpectrumSelector
 
         wavelengths = torch.linspace(400.0, 900.0, 12, dtype=torch.float32)
         cube_train = torch.rand(1, 4, 4, 12, dtype=torch.float32)
@@ -317,7 +317,7 @@ class TestBandSelection:
         def stream() -> Generator[dict[str, Any], None, None]:
             yield {"cube": cube_train, "mask": mask_train, "wavelengths": wavelengths}
 
-        selector = SupervisedFullSpectrumBandSelector(
+        selector = SupervisedFullSpectrumSelector(
             num_spectral_bands=12,
             score_weights=(1.0, 1.0, 1.0),
             lambda_penalty=0.2,
@@ -394,12 +394,12 @@ class TestIntegration:
 
     def test_pipeline_connection_types(self) -> None:
         """Test that nodes can be connected in a pipeline."""
-        from cuvis_ai.node import BaselineFalseRGBSelector
+        from cuvis_ai.node import FixedWavelengthSelector
         from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
         _pipeline = CuvisPipeline("test_adaclip")
 
-        selector = BaselineFalseRGBSelector()
+        selector = FixedWavelengthSelector()
         detector = AdaCLIPDetector()
 
         # Test that port types are compatible
@@ -411,12 +411,12 @@ class TestIntegration:
 
     def test_band_selector_to_detector_pipeline(self) -> None:
         """Test a complete band selector -> detector pipeline setup."""
-        from cuvis_ai.node import BaselineFalseRGBSelector
+        from cuvis_ai.node import FixedWavelengthSelector
         from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
         pipeline = CuvisPipeline("test_band_to_adaclip")
 
-        selector = BaselineFalseRGBSelector()
+        selector = FixedWavelengthSelector()
         detector = AdaCLIPDetector()
 
         # This should not raise any errors
@@ -539,14 +539,14 @@ class TestEdgeCases:
 
     def test_band_selector_empty_window(self) -> None:
         """Test band selector handles window with no bands."""
-        from cuvis_ai.node import HighContrastBandSelector
+        from cuvis_ai.node import HighContrastSelector
 
         # Create wavelengths that don't overlap with one window
         wavelengths = torch.linspace(500, 700, 50)
         cube = torch.rand(1, 32, 32, 50)
 
         # Window that has no bands
-        selector = HighContrastBandSelector(windows=((300, 350), (550, 600), (650, 700)))
+        selector = HighContrastSelector(windows=((300, 350), (550, 600), (650, 700)))
 
         result = selector.forward(cube=cube, wavelengths=wavelengths)
 
@@ -721,9 +721,9 @@ class TestDeviceHandling:
 
     def test_band_selector_preserves_device(self) -> None:
         """Test that band selectors preserve input device."""
-        from cuvis_ai.node import BaselineFalseRGBSelector
+        from cuvis_ai.node import FixedWavelengthSelector
 
-        selector = BaselineFalseRGBSelector()
+        selector = FixedWavelengthSelector()
         cube = torch.rand(1, 32, 32, 50, dtype=torch.float32)
         wavelengths = torch.linspace(400, 900, 50, dtype=torch.float32)
 
@@ -741,7 +741,7 @@ class TestPipelineIntegration:
 
     def test_pipeline_with_baseline_strategy(self) -> None:
         """Test pipeline setup with baseline band selector and AdaCLIP."""
-        from cuvis_ai.node import BaselineFalseRGBSelector
+        from cuvis_ai.node import FixedWavelengthSelector
         from cuvis_ai.node.data import LentilsAnomalyDataNode
         from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
@@ -750,7 +750,7 @@ class TestPipelineIntegration:
             normal_class_ids=[0, 1],
             wavelengths=np.linspace(400, 900, 50),
         )
-        band_selector = BaselineFalseRGBSelector()
+        band_selector = FixedWavelengthSelector()
         detector = AdaCLIPDetector()
 
         pipeline.connect(
@@ -763,7 +763,7 @@ class TestPipelineIntegration:
 
     def test_pipeline_with_supervised_strategy(self) -> None:
         """Test pipeline setup with supervised band selector."""
-        from cuvis_ai.node import SupervisedCIRBandSelector
+        from cuvis_ai.node import SupervisedCIRSelector
         from cuvis_ai.node.data import LentilsAnomalyDataNode
         from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
@@ -772,7 +772,7 @@ class TestPipelineIntegration:
             normal_class_ids=[0, 1],
             wavelengths=np.linspace(400, 900, 50),
         )
-        band_selector = SupervisedCIRBandSelector(num_spectral_bands=50)
+        band_selector = SupervisedCIRSelector(num_spectral_bands=50)
         detector = AdaCLIPDetector()
 
         pipeline.connect(
@@ -787,7 +787,7 @@ class TestPipelineIntegration:
 
     def test_pipeline_handles_missing_mask_for_unsupervised(self) -> None:
         """Test that pipeline works when mask is not provided to unsupervised selectors."""
-        from cuvis_ai.node import BaselineFalseRGBSelector
+        from cuvis_ai.node import FixedWavelengthSelector
         from cuvis_ai.node.data import LentilsAnomalyDataNode
         from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
@@ -796,7 +796,7 @@ class TestPipelineIntegration:
             normal_class_ids=[0, 1],
             wavelengths=np.linspace(400, 900, 50),
         )
-        band_selector = BaselineFalseRGBSelector()
+        band_selector = FixedWavelengthSelector()
 
         # Should not require mask connection
         pipeline.connect(
@@ -869,9 +869,9 @@ class TestAdditionalEdgeCases:
 
     def test_high_contrast_default_windows_order(self) -> None:
         """Test that high contrast uses correct legacy window order (B, G, R)."""
-        from cuvis_ai.node import HighContrastBandSelector
+        from cuvis_ai.node import HighContrastSelector
 
-        selector = HighContrastBandSelector()
+        selector = HighContrastSelector()
         windows = selector.windows
         # Should be Blue (440-500), Green (500-580), Red (610-700)
         assert windows[0] == (440.0, 500.0)
@@ -880,9 +880,9 @@ class TestAdditionalEdgeCases:
 
     def test_supervised_selector_requires_fit_before_forward(self) -> None:
         """Test that supervised selectors raise error if forward() called before fit()."""
-        from cuvis_ai.node import SupervisedFullSpectrumBandSelector
+        from cuvis_ai.node import SupervisedFullSpectrumSelector
 
-        selector = SupervisedFullSpectrumBandSelector(num_spectral_bands=10)
+        selector = SupervisedFullSpectrumSelector(num_spectral_bands=10)
         cube = torch.rand(1, 4, 4, 10, dtype=torch.float32)
         wavelengths = torch.linspace(400, 900, 10, dtype=torch.float32)
 
@@ -891,9 +891,9 @@ class TestAdditionalEdgeCases:
 
     def test_band_selector_wavelength_dtype_conversion(self) -> None:
         """Test that band selectors handle int32 wavelengths correctly."""
-        from cuvis_ai.node import BaselineFalseRGBSelector
+        from cuvis_ai.node import FixedWavelengthSelector
 
-        selector = BaselineFalseRGBSelector()
+        selector = FixedWavelengthSelector()
         cube = torch.rand(1, 4, 4, 50, dtype=torch.float32)
         # Simulate int32 wavelengths from LentilsAnomalyDataNode
         wavelengths = np.linspace(400, 900, 50, dtype=np.int32)

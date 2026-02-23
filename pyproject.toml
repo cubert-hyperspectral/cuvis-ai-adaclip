@@ -74,8 +74,8 @@ torch = { index = "pytorch-cu128" }
 torchvision = { index = "pytorch-cu128" }
 
 # Git-based dependencies (active)
-cuvis-ai = { git = "https://github.com/cubert-hyperspectral/cuvis-ai.git", tag = "v0.2.3" }
-cuvis-ai-core = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-core.git", tag = "v0.1.0" }
+cuvis-ai = { git = "https://github.com/cubert-hyperspectral/cuvis-ai.git", branch = "nima/features/consolidation" }
+cuvis-ai-core = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-core.git", branch = "nima/features/consolidation" }
 
 # Local development alternatives (uncomment to use local paths instead)
 # cuvis-ai = { path = "../cuvis-ai", editable = true }

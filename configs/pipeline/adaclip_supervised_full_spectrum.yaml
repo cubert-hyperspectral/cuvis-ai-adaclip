@@ -6,8 +6,8 @@ nodes:
     normal_class_ids:
     - 0
     - 1
-- name: SupervisedFullSpectrumBandSelector
-  class: cuvis_ai.node.band_selection.SupervisedFullSpectrumBandSelector
+- name: SupervisedFullSpectrumSelector
+  class: cuvis_ai.node.channel_selector.SupervisedFullSpectrumSelector
   params:
     score_weights: !!python/tuple
     - 1.0
@@ -34,13 +34,13 @@ nodes:
     quantile: 0.995
     reduce_dims: null
 - name: ScoreHeatmapVisualizer
-  class: cuvis_ai.node.visualizations.ScoreHeatmapVisualizer
+  class: cuvis_ai.node.anomaly_visualization.ScoreHeatmapVisualizer
   params:
     normalize_scores: true
     cmap: inferno
     up_to: 3
 - name: RGBAnomalyMask
-  class: cuvis_ai.node.visualizations.RGBAnomalyMask
+  class: cuvis_ai.node.anomaly_visualization.RGBAnomalyMask
   params:
     up_to: 3
 - name: detection_metrics
@@ -56,18 +56,18 @@ nodes:
     flush_secs: 120
 connections:
 - from: LentilsAnomalyDataNode.outputs.cube
-  to: SupervisedFullSpectrumBandSelector.inputs.cube
+  to: SupervisedFullSpectrumSelector.inputs.cube
 - from: LentilsAnomalyDataNode.outputs.wavelengths
-  to: SupervisedFullSpectrumBandSelector.inputs.wavelengths
+  to: SupervisedFullSpectrumSelector.inputs.wavelengths
 - from: LentilsAnomalyDataNode.outputs.mask
-  to: SupervisedFullSpectrumBandSelector.inputs.mask
+  to: SupervisedFullSpectrumSelector.inputs.mask
 - from: LentilsAnomalyDataNode.outputs.mask
   to: detection_metrics.inputs.targets
 - from: LentilsAnomalyDataNode.outputs.mask
   to: RGBAnomalyMask.inputs.mask
-- from: SupervisedFullSpectrumBandSelector.outputs.rgb_image
+- from: SupervisedFullSpectrumSelector.outputs.rgb_image
   to: AdaCLIPDetector.inputs.rgb_image
-- from: SupervisedFullSpectrumBandSelector.outputs.rgb_image
+- from: SupervisedFullSpectrumSelector.outputs.rgb_image
   to: RGBAnomalyMask.inputs.rgb_image
 - from: AdaCLIPDetector.outputs.scores
   to: QuantileBinaryDecider.inputs.logits
@@ -89,7 +89,7 @@ frozen_nodes: []
 metadata:
   name: AdaCLIP_Supervised_FullSpectrum
   description: "Statistical AdaCLIP supervised full-spectrum pipeline (LentilsAnomalyDataNode\
-    \ \u2192 SupervisedFullSpectrumBandSelector \u2192 AdaCLIPDetector)"
+    \ \u2192 SupervisedFullSpectrumSelector \u2192 AdaCLIPDetector)"
   created: ''
   tags:
   - statistical
