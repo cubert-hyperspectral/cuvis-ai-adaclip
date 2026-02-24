@@ -1,5 +1,10 @@
 # AdaCLIP Plugin for cuvis.ai
 
+[![CI Status](https://github.com/cubert-hyperspectral/cuvis-ai-adaclip/actions/workflows/ci.yml/badge.svg)](https://github.com/cubert-hyperspectral/cuvis-ai-adaclip/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/cubert-hyperspectral/cuvis-ai-adaclip/branch/main/graph/badge.svg)](https://codecov.io/gh/cubert-hyperspectral/cuvis-ai-adaclip)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
+
 A **[cuvis.ai](https://github.com/cubert-hyperspectral/cuvis-ai) plugin** for [AdaCLIP](https://arxiv.org/abs/2407.15795), a zero-shot anomaly detection method that adapts CLIP with hybrid learnable prompts for hyperspectral imaging.
 
 > **Note**: For the original AdaCLIP repository and training code, see [README_UPSTREAM.md](README_UPSTREAM.md).
@@ -239,7 +244,7 @@ See [CHANGELOG.md](CHANGELOG.md) for version history and upgrade guidance.
 
 ## Compatibility
 
-- **Python**: 3.10-3.13
+- **Python**: 3.11
 - **PyTorch**: Provided by cuvis.ai dependency
 - **CUDA**: GPU recommended for optimal performance
 

@@ -1,10 +1,17 @@
 #!/bin/bash
-# Pre-push hook: Comprehensive quality checks (linting + formatting + tests)
+# Pre-push hook: Comprehensive quality checks (linting + formatting + docstrings + tests)
 # Skip with: git push --no-verify
 
 set -e
 
 echo "Running pre-push checks..."
+
+# Sync dev dependencies first
+echo "→ Syncing dev dependencies..."
+if ! uv sync --all-extras; then
+    echo "✗ Dev dependency sync failed. Please check your environment."
+    exit 1
+fi
 
 # Run Ruff formatting first
 echo "→ Running Ruff formatting..."
@@ -20,9 +27,25 @@ if ! uv run ruff check . --fix; then
     exit 1
 fi
 
+# Check docstring coverage
+echo "→ Checking docstring coverage (≥80%)..."
+if ! uv run interrogate cuvis_ai_adaclip/; then
+    echo ""
+    echo "✗ Docstring coverage check failed!"
+    echo "  Coverage is below 80% threshold."
+    echo ""
+    echo "  To see detailed missing docstrings:"
+    echo "    interrogate -vv cuvis_ai_adaclip/"
+    echo ""
+    echo "  To skip this check (not recommended):"
+    echo "    git push --no-verify"
+    echo ""
+    exit 1
+fi
+
 # Run pytest with non-GPU tests
-echo "→ Running pytest (excluding GPU tests)..."
-if ! uv run python -m pytest tests/ -v --tb=line -m "not gpu"; then
+echo "→ Running pytest (excluding slow and GPU tests)..."
+if ! uv run python -m pytest tests/ -v --tb=line -m "not slow and not gpu"; then
     echo "✗ Tests failed. Please fix the failing tests and try again."
     exit 1
 fi

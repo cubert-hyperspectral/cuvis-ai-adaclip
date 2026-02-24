@@ -3,14 +3,27 @@ requires = ["setuptools>=64", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "cuvis_ai_adaclip"
+name = "cuvis-ai-adaclip"
 dynamic = ["version"]
 description = "AdaCLIP (ECCV 2024) with a cuvis.ai-compatible plugin package."
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
-license = { text = "MIT" }
+license = "MIT"
 authors = [
-    { name = "Cubert GmbH, Ulm, Germany", email = "SDK@cubert-gmbh.com" },
+    { name = "Cubert GmbH, Ulm, Germany", email = "cuvis.ai@cubert-gmbh.com" },
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Image Processing",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Operating System :: OS Independent",
 ]
 dependencies = [
     # Rely on cuvis_ai to provide the torch / torchvision / numpy stack and most deps.
@@ -31,21 +44,6 @@ dependencies = [
     "gradio",
     "torchaudio",
     "click", # For CLI interface
-    # Original AdaCLIP requirements (kept here as comments for reference):
-    # "torch==1.11.0",
-    # "torchvision==0.11.2",
-    # "torchaudio==0.10.1",
-    # "tqdm",
-    # "tensorboard",
-    # "setuptools==58.0.4",
-    # "opencv-python",
-    # "scikit-image",
-    # "scikit-learn",
-    # "matplotlib",
-    # "seaborn",
-    # "regex",
-    # "numpy==1.26.4",
-    # "gradio",
     "pandas>=2.3.0",
 ]
 
@@ -53,11 +51,22 @@ dependencies = [
 dev = [
     "ipython",
     "pytest",
+    "pytest-cov",
     "ruff",
+    "interrogate>=1.5.0",
+    "twine>=6.2.0",
+    "pip-audit>=2.7.0",
+    "bandit[toml]>=1.7.0",
+    "detect-secrets>=1.4.0",
+    "pip-licenses>=4.0.0",
+    "cyclonedx-bom>=4.0.0",
 ]
 
 [project.urls]
-Homepage = "https://github.com/cubert-hyperspectral/AdaCLIP"
+Homepage = "https://www.cubert-hyperspectral.com/"
+Repository = "https://github.com/cubert-hyperspectral/cuvis-ai-adaclip"
+Issues = "https://github.com/cubert-hyperspectral/cuvis-ai-adaclip/issues"
+Changelog = "https://github.com/cubert-hyperspectral/cuvis-ai-adaclip/blob/main/CHANGELOG.md"
 
 [tool.setuptools]
 py-modules = ["loss"]
@@ -87,7 +96,7 @@ url = "https://download.pytorch.org/whl/cu128"
 explicit = true
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py311"
 line-length = 100
 
 [tool.ruff.format]
@@ -115,12 +124,36 @@ ignore = ["ANN401", "E501"]
 "test.py" = ["ALL"]
 "app.py" = ["ALL"]
 "loss.py" = ["ALL"]
+# Relax annotation requirements for tests
+"tests/**" = ["ANN201", "ANN202", "ANN204"]
 
 [tool.setuptools_scm]
 version_scheme = "post-release"
 local_scheme = "node-and-date"
 
-[dependency-groups]
-dev = [
-    "setuptools-scm>=9.2.2",
-]
+[tool.interrogate]
+ignore-init-method = true
+ignore-init-module = false
+ignore-magic = false
+ignore-module = false
+ignore-nested-functions = false
+ignore-nested-classes = true
+ignore-private = false
+ignore-property-decorators = false
+ignore-semiprivate = false
+ignore-setters = false
+fail-under = 80
+exclude = ["setup.py", "build", "tests", "method", "dataset", "adaclip_tools", "data_preprocess"]
+verbose = 1
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+exclude = ["tests", "build", "dist", "method", "dataset", "adaclip_tools", "data_preprocess"]
+
+[tool.bandit]
+exclude_dirs = ["tests", "method", "dataset", "adaclip_tools", "data_preprocess"]
+skips = ["B101", "B614"]  # B614: torch.load is required for loading model weights
