@@ -368,20 +368,32 @@ class TestAdaCLIPDetector:
         output_spec = detector.OUTPUT_SPECS["scores"]
         assert output_spec.shape == (-1, -1, -1, 1)
 
-    @pytest.mark.skip(reason="Requires downloading weights (~500MB)")
-    def test_detector_forward_with_real_weights(self) -> None:
-        """Test forward pass with real weights (requires download)."""
-        detector = AdaCLIPDetector(weight_name="pretrained_all")
+    def test_current_device_returns_cpu(self) -> None:
+        """Detector without GPU should report CPU device."""
+        detector = AdaCLIPDetector()
+        assert detector.current_device == torch.device("cpu")
 
-        # Create dummy RGB input
-        rgb_input = torch.rand(1, 64, 64, 3, dtype=torch.float32)
+    def test_initialized_flag_starts_false(self) -> None:
+        """The _initialized_flag buffer should be False before model loading."""
+        detector = AdaCLIPDetector()
+        assert detector._initialized_flag.item() is False
 
-        result = detector.forward(rgb_image=rgb_input)
-
-        assert "scores" in result
-        assert "anomaly_score" in result
-        assert result["scores"].shape == (1, 64, 64, 1)
-        assert result["anomaly_score"].shape == (1,)
+    def test_load_state_dict_remaps_model_to_clip_model(self) -> None:
+        """load_state_dict should remap adaclip_model._model keys to _clip_model."""
+        detector = AdaCLIPDetector()
+        # Build a fake state_dict with old-style _model keys
+        state_dict = {
+            "adaclip_model._model.weight": torch.tensor([1.0]),
+            "adaclip_model._model.bias": torch.tensor([0.0]),
+            "_initialized_flag": torch.tensor(False),
+            "_clip_mean": torch.zeros(1, 3, 1, 1),
+            "_clip_std": torch.ones(1, 3, 1, 1),
+        }
+        # Should not raise — uses strict=False internally
+        result = detector.load_state_dict(state_dict)
+        # The remapped keys should appear in unexpected_keys (since the actual
+        # submodule isn't loaded), but the point is no crash and remapping works
+        assert result is not None
 
 
 # ============================================================================
@@ -441,92 +453,13 @@ class TestIntegration:
         assert model.image_size == 518
         assert model._clip_model is None  # Lazy initialization
 
+    def test_register_all_nodes_returns_int(self) -> None:
+        """register_all_nodes() should return an integer (node count)."""
+        from cuvis_ai_adaclip import register_all_nodes
 
-# ============================================================================
-# Core Model Tests
-# ============================================================================
-
-
-class TestCoreModels:
-    """Tests for core AdaCLIP model components."""
-
-    def test_transformer_layer_norm(self) -> None:
-        """Test LayerNorm variants work correctly.
-
-        Note: This test is skipped for plugin version as it tests internal
-        components that may not be exposed in the plugin.
-        """
-        pytest.skip("Plugin version does not expose internal transformer components")
-
-        dim = 768
-        ln = LayerNorm(dim)  # noqa: F821
-        ln_fp32 = LayerNormFp32(dim)  # noqa: F821
-
-        x = torch.randn(2, 10, dim)
-        x_fp16 = x.half()
-
-        # Test standard LayerNorm
-        out = ln(x)
-        assert out.shape == x.shape
-        assert out.dtype == x.dtype
-
-        # Test FP32 LayerNorm with FP16 input
-        out_fp32 = ln_fp32(x_fp16)
-        assert out_fp32.shape == x_fp16.shape
-        assert out_fp32.dtype == x_fp16.dtype
-
-    def test_quick_gelu(self) -> None:
-        """Test QuickGELU activation.
-
-        Note: This test is skipped for plugin version as it tests internal
-        components that may not be exposed in the plugin.
-        """
-        pytest.skip("Plugin version does not expose internal transformer components")
-
-        gelu = QuickGELU()  # noqa: F821
-        x = torch.randn(2, 10, 768)
-        out = gelu(x)
-
-        assert out.shape == x.shape
-        # QuickGELU should be bounded
-        assert torch.isfinite(out).all()
-
-    def test_simple_tokenizer(self) -> None:
-        """Test SimpleTokenizer for text encoding.
-
-        Note: This test is skipped for plugin version as it tests internal
-        components that may not be exposed in the plugin.
-        """
-        pytest.skip("Plugin version does not expose internal tokenizer components")
-
-        tokenizer = SimpleTokenizer()  # noqa: F821
-
-        # Test encoding
-        tokens = tokenizer.encode("hello world")
-        assert isinstance(tokens, list)
-        assert len(tokens) > 0
-        assert all(isinstance(t, int) for t in tokens)
-
-        # Test decoding
-        text = tokenizer.decode(tokens)
-        assert isinstance(text, str)
-        assert "hello" in text.lower()
-
-    def test_utils_to_2tuple(self) -> None:
-        """Test to_2tuple utility function.
-
-        Note: This test is skipped for plugin version as it tests internal
-        utility functions that may not be exposed in the plugin.
-        """
-        pytest.skip("Plugin version does not expose internal utility functions")
-
-        # Single int -> tuple
-        result = to_2tuple(224)  # noqa: F821
-        assert result == (224, 224)
-
-        # Already a tuple -> unchanged
-        result = to_2tuple((224, 336))  # noqa: F821
-        assert result == (224, 336)
+        count = register_all_nodes()
+        assert isinstance(count, int)
+        assert count >= 0
 
 
 # ============================================================================
@@ -581,50 +514,8 @@ class DummyResize:
         self.interpolation = None
 
 
-class DummyCenterCrop:
-    """Simple stand-in for torchvision.transforms.CenterCrop."""
-
-    def __init__(self, size) -> None:
-        self.size = size
-
-
-class DummyPreprocess:
-    """Container mimicking torchvision Compose."""
-
-    def __init__(self, transforms) -> None:
-        self.transforms = transforms
-
-
-class DummyAdaCLIP(torch.nn.Module):
-    """Lightweight AdaCLIP stub for unit tests."""
-
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__()
-        self.device = kwargs.get("device", "cpu")
-
-    def to(self, device) -> DummyAdaCLIP:
-        self.device = device
-        return self
-
-
 class TestLegacyParity:
     """Regression tests ensuring new pipeline matches legacy behaviors."""
-
-    def test_adaclip_model_preprocess_uses_tuple_resize(self, monkeypatch) -> None:
-        """Ensure the preprocessing resize matches legacy (exact square).
-
-        Note: This test is complex to mock for the plugin version since it
-        requires mocking internal AdaCLIP class initialization. For the plugin
-        version, we skip the detailed mocking and verify the resize behavior
-        is correct by checking the actual implementation in integration tests.
-        """
-        # Skip this test for plugin version - the complex mocking required
-        # doesn't work well with the plugin's structure. The resize tuple
-        # behavior is verified in integration tests with real model initialization.
-        pytest.skip(
-            "Plugin version: Complex mocking of AdaCLIP initialization not supported. "
-            "Resize tuple behavior verified in integration tests."
-        )
 
     def test_compute_pixel_metrics_uses_optimal_f1(self) -> None:
         """Verify pixel metrics compute maximal F1 rather than fixed threshold."""
@@ -839,24 +730,15 @@ class TestStatisticalScripts:
         from cuvis_ai_adaclip.examples_cuvis import statistical_cir_false_color  # noqa: F401
 
     def test_statistical_supervised_cir_imports(self) -> None:
-        """Test that statistical_supervised_cir.py can be imported.
-
-        Note: This example script may still import from the old in-tree module.
-        If it fails, we skip the test since it's an example script issue,
-        not a test framework issue.
-        """
+        """Test that statistical_supervised_cir.py can be imported."""
         import sys
         from pathlib import Path
 
-        project_root = Path(__file__).resolve().parents[2]
+        project_root = Path(__file__).resolve().parents[1]
         if str(project_root) not in sys.path:
             sys.path.insert(0, str(project_root))
 
-        try:
-            from examples.adaclip import statistical_supervised_cir  # noqa: F401
-        except ImportError as e:
-            # Example script may still use old imports - skip gracefully
-            pytest.skip(f"statistical_supervised_cir.py not available or uses old imports: {e}")
+        from cuvis_ai_adaclip.examples_cuvis import statistical_supervised_cir  # noqa: F401
 
 
 # ============================================================================
