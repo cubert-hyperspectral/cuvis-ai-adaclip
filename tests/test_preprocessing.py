@@ -50,7 +50,8 @@ class TestGaussianSmooth:
 
     def test_larger_sigma_smoother(self) -> None:
         """Larger sigma should produce smoother (lower variance) output."""
-        x = torch.rand(2, 32, 32)
+        torch.manual_seed(42)
+        x = torch.rand(2, 64, 64)
         result_small = AdaCLIPModel._gaussian_smooth_2d(x, sigma=1.0)
         result_large = AdaCLIPModel._gaussian_smooth_2d(x, sigma=4.0)
         # Larger sigma → lower pixel variance (smoother)
