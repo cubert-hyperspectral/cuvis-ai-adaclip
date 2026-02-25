@@ -4,17 +4,10 @@
 
 ## 0.1.2 - 2026-02-25
 
-- Updated all cuvis-ai import paths and class names to match consolidation (ALL-5300 Steps 1-9):
-  - `cuvis_ai.node.band_selection` → `cuvis_ai.node.channel_selector`
-  - `cuvis_ai.node.selector` → `cuvis_ai.node.channel_selector`
-  - `cuvis_ai.node.visualizations` → `cuvis_ai.node.anomaly_visualization`
-  - 7 selector class renames: `BaselineFalseRGBSelector` → `FixedWavelengthSelector`, `CIRFalseColorSelector` → `CIRSelector`, `HighContrastBandSelector` → `HighContrastSelector`, `SupervisedCIRBandSelector` → `SupervisedCIRSelector`, `SupervisedWindowedFalseRGBSelector` → `SupervisedWindowedSelector`, `SupervisedFullSpectrumBandSelector` → `SupervisedFullSpectrumSelector`, `BandSelectorBase` → `ChannelSelectorBase`
-- Updated cuvis-ai-core imports for schemas extraction:
-  - `cuvis_ai_core.pipeline.ports.PortSpec` → `cuvis_ai_schemas.pipeline.PortSpec`
-  - `cuvis_ai_core.utils.types.Context` → `cuvis_ai_schemas.execution.Context`
-  - `cuvis_ai_core.utils.types.ExecutionStage` → `cuvis_ai_schemas.enums.ExecutionStage`
-  - `cuvis_ai_core.pipeline.canvas.CuvisCanvas` → `cuvis_ai_core.pipeline.pipeline.CuvisPipeline`
-  - `cuvis_ai_core.utils.node_registry.auto_register_package` → `NodeRegistry.auto_register_package`
+- Updated cuvis-ai node module paths: `band_selection` → `channel_selector`, `selector` → `channel_selector`, `visualizations` → `anomaly_visualization` (ALL-5300 Steps 1-9)
+- Renamed 7 selector classes: `BaselineFalseRGBSelector` → `FixedWavelengthSelector`, `CIRFalseColorSelector` → `CIRSelector`, `HighContrastBandSelector` → `HighContrastSelector`, `SupervisedCIRBandSelector` → `SupervisedCIRSelector`, `SupervisedWindowedFalseRGBSelector` → `SupervisedWindowedSelector`, `SupervisedFullSpectrumBandSelector` → `SupervisedFullSpectrumSelector`, `BandSelectorBase` → `ChannelSelectorBase`
+- Updated cuvis-ai-core imports: `CuvisCanvas` → `CuvisPipeline`, `auto_register_package` → `NodeRegistry.auto_register_package`
+- Updated cuvis-ai-schemas imports: `PortSpec`, `Context`, `ExecutionStage` moved from `cuvis_ai_core` to `cuvis_ai_schemas`
 - Updated 8 pipeline YAML configs with new `class` paths and node names
 - Updated 2 test files with new import paths and class names
 - Updated README.md code examples with new import paths
