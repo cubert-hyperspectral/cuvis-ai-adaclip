@@ -228,19 +228,19 @@ class TestIntegrationWithCuvisAI:
     """Integration tests for AdaCLIPDetector with cuvis.ai pipeline components."""
 
     def test_band_selector_to_detector_pipeline(self) -> None:
-        """Test a simple BaselineFalseRGBSelector -> AdaCLIPDetector pipeline wiring.
+        """Test a simple FixedWavelengthSelector -> AdaCLIPDetector pipeline wiring.
 
         Uses CuvisPipeline (current cuvis.ai API) instead of the legacy CuvisCanvas.
         """
         try:
-            from cuvis_ai.node import BaselineFalseRGBSelector
+            from cuvis_ai.node import FixedWavelengthSelector
             from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
         except Exception as exc:  # pragma: no cover - optional dependency
             pytest.skip(f"cuvis.ai integration not available: {exc}")
 
         pipeline = CuvisPipeline("test_band_to_adaclip_plugin")
 
-        selector = BaselineFalseRGBSelector()
+        selector = FixedWavelengthSelector()
         detector = AdaCLIPDetector()
 
         # This should not raise any errors; just check PortSpec compatibility.
@@ -254,7 +254,7 @@ class TestIntegrationWithCuvisAI:
     def test_canvas_with_baseline_strategy(self) -> None:
         """Test pipeline setup with baseline band selector and plugin AdaCLIPDetector."""
         try:
-            from cuvis_ai.node import BaselineFalseRGBSelector
+            from cuvis_ai.node import FixedWavelengthSelector
             from cuvis_ai.node.data import LentilsAnomalyDataNode
             from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
         except Exception as exc:  # pragma: no cover - optional dependency
@@ -265,7 +265,7 @@ class TestIntegrationWithCuvisAI:
             normal_class_ids=[0, 1],
             wavelengths=np.linspace(400, 900, 50),
         )
-        band_selector = BaselineFalseRGBSelector()
+        band_selector = FixedWavelengthSelector()
         detector = AdaCLIPDetector()
 
         pipeline.connect(

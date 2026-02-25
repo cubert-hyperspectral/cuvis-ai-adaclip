@@ -29,9 +29,9 @@ def register_all_nodes() -> int:
         The number of node classes that were registered.
     """
     # Local import to avoid importing cuvis_ai at plugin import time
-    from cuvis_ai_core.utils.node_registry import auto_register_package
+    from cuvis_ai_core.utils.node_registry import NodeRegistry
 
-    return auto_register_package("cuvis_ai_adaclip")
+    return NodeRegistry.auto_register_package("cuvis_ai_adaclip")
 
 
 __all__ = [

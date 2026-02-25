@@ -1,0 +1,187 @@
+name: CI
+
+on:
+  push:
+    branches: [main, staging]
+    tags-ignore:
+      - 'v*.*.*'
+  pull_request:
+    branches: [main, staging]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Run tests with coverage
+    runs-on: ubuntu-latest
+    container:
+      image: cubertgmbh/cuvis_pyil:3.5.0-ubuntu24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install system dependencies
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends libgl1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras
+
+      - name: Run tests with coverage
+        run: |
+          uv run pytest tests/ \
+            -m "not gpu" \
+            --cov=cuvis_ai_adaclip \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            -v
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+  typecheck:
+    name: Type checking
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras
+
+      - name: Run mypy
+        run: |
+          uv run mypy cuvis_ai_adaclip/ || true
+
+  lint:
+    name: Linting and formatting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras
+
+      - name: Run ruff check
+        run: |
+          uv run ruff check cuvis_ai_adaclip/
+
+      - name: Run ruff format check
+        run: |
+          uv run ruff format --check cuvis_ai_adaclip/
+
+  security:
+    name: Security scanning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras
+
+      - name: Run pip-audit
+        run: |
+          uv run pip-audit --strict --desc on || true
+
+      - name: Run detect-secrets
+        run: |
+          uv run detect-secrets scan --baseline .secrets.baseline
+
+      - name: Run bandit
+        run: |
+          uv run bandit -r cuvis_ai_adaclip/ -c pyproject.toml || true
+
+  build-and-validate:
+    name: Build and validate package
+    needs: [test, typecheck, lint, security]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras
+
+      - name: Build package
+        run: |
+          uv build
+
+      - name: Validate package
+        run: |
+          uv run twine check dist/*
+
+      - name: Show package version
+        run: ls dist/
+
+      - name: Generate SBOM
+        run: |
+          uv run cyclonedx-py -o sbom.cdx.json || true
+
+      - name: Generate license report
+        run: |
+          uv run pip-licenses --format=markdown --with-authors > licenses.md || true

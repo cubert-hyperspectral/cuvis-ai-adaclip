@@ -20,11 +20,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from cuvis_ai.deciders.binary_decider import QuantileBinaryDecider
-from cuvis_ai.node.band_selection import CIRFalseColorSelector
+from cuvis_ai.node.channel_selector import CIRSelector
 from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai_core.data.datasets import SingleCu3sDataModule
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
-from cuvis_ai_core.utils.types import ExecutionStage
+from cuvis_ai_schemas.enums import ExecutionStage
 from loguru import logger
 from sklearn.metrics import (
     confusion_matrix,
@@ -342,7 +342,7 @@ def main(**kwargs) -> None:
     pipeline = CuvisPipeline("AdaCLIP_CIR_FalseColor_OptimalThreshold_AllFrames")
 
     data_node = LentilsAnomalyDataNode(normal_class_ids=[0, 1])
-    band_selector = CIRFalseColorSelector(nir_nm=nir_nm, red_nm=red_nm, green_nm=green_nm)
+    band_selector = CIRSelector(nir_nm=nir_nm, red_nm=red_nm, green_nm=green_nm)
 
     image_size = 518
     adaclip = AdaCLIPDetector(

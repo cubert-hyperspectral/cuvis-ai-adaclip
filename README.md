@@ -1,5 +1,10 @@
 # AdaCLIP Plugin for cuvis.ai
 
+[![CI Status](https://github.com/cubert-hyperspectral/cuvis-ai-adaclip/actions/workflows/ci.yml/badge.svg)](https://github.com/cubert-hyperspectral/cuvis-ai-adaclip/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/cubert-hyperspectral/cuvis-ai-adaclip/branch/main/graph/badge.svg)](https://codecov.io/gh/cubert-hyperspectral/cuvis-ai-adaclip)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
+
 A **[cuvis.ai](https://github.com/cubert-hyperspectral/cuvis-ai) plugin** for [AdaCLIP](https://arxiv.org/abs/2407.15795), a zero-shot anomaly detection method that adapts CLIP with hybrid learnable prompts for hyperspectral imaging.
 
 > **Note**: For the original AdaCLIP repository and training code, see [README_UPSTREAM.md](README_UPSTREAM.md).
@@ -37,7 +42,7 @@ For developers working directly with the code:
 
 ```python
 from cuvis_ai_adaclip import AdaCLIPDetector, download_weights
-from cuvis_ai.node.band_selection import CIRFalseColorSelector
+from cuvis_ai.node.channel_selector import CIRSelector
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
 # Download weights
@@ -45,7 +50,7 @@ download_weights("pretrained_all")
 
 # Create pipeline
 pipeline = CuvisPipeline("adaclip_pipeline")
-band_selector = CIRFalseColorSelector(nir_nm=860.0, red_nm=670.0, green_nm=560.0)
+band_selector = CIRSelector(nir_nm=860.0, red_nm=670.0, green_nm=560.0)
 adaclip = AdaCLIPDetector(
     weight_name="pretrained_all",
     backbone="ViT-L-14-336",
@@ -239,7 +244,7 @@ See [CHANGELOG.md](CHANGELOG.md) for version history and upgrade guidance.
 
 ## Compatibility
 
-- **Python**: 3.10-3.13
+- **Python**: 3.11
 - **PyTorch**: Provided by cuvis.ai dependency
 - **CUDA**: GPU recommended for optimal performance
 
