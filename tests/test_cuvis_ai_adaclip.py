@@ -12,6 +12,7 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 import torch
+import torch.nn as nn
 
 from cuvis_ai_adaclip import (
     ADACLIP_WEIGHTS,
@@ -102,8 +103,90 @@ class TestAdaCLIPDetectorNode:
         # Check output specs
         assert "scores" in detector.OUTPUT_SPECS
         assert "anomaly_score" in detector.OUTPUT_SPECS
+        assert "per_layer_scores" in detector.OUTPUT_SPECS
+        assert "image_score_2ch" in detector.OUTPUT_SPECS
         output_spec = detector.OUTPUT_SPECS["scores"]
         assert output_spec.shape == (-1, -1, -1, 1)
+
+    def test_training_without_aggregation_emits_per_layer_outputs(self) -> None:
+        """Training path should expose per-layer maps and 2-channel image scores."""
+        detector = AdaCLIPDetector(training_aggregation=False, enable_gradients=True)
+        detector.train()
+        detector._preprocess = MagicMock(return_value=torch.rand(2, 3, 518, 518))  # type: ignore[assignment]
+
+        class MockModel:
+            device = torch.device("cpu")
+
+            def predict(
+                self,
+                image: torch.Tensor,
+                prompt: str = "",
+                sigma: float = 4.0,
+                aggregation: bool = True,
+                enable_gradients: bool = False,
+            ) -> tuple[list[torch.Tensor], torch.Tensor]:
+                b = image.shape[0]
+                layer_1 = torch.softmax(torch.rand(b, 2, 8, 8), dim=1)
+                layer_2 = torch.softmax(torch.rand(b, 2, 8, 8), dim=1)
+                image_score_2ch = torch.softmax(torch.rand(b, 2), dim=1)
+                return [layer_1, layer_2], image_score_2ch
+
+        detector._adaclip_model = MockModel()  # type: ignore[assignment]
+        detector._ensure_model_loaded = lambda: None  # type: ignore[method-assign]
+
+        rgb = torch.rand(2, 32, 32, 3)
+        out = detector.forward(rgb_image=rgb)
+
+        assert out["scores"].shape == (2, 32, 32, 1)
+        assert out["per_layer_scores"].shape == (2, 4, 32, 32)
+        assert out["image_score_2ch"].shape == (2, 2)
+        assert out["anomaly_score"].shape == (2,)
+
+    def test_unfreeze_only_adapters_and_finetune_updates_them(self) -> None:
+        """Fine-tuning should update adapter params while backbone stays frozen."""
+        detector = AdaCLIPDetector(enable_gradients=True, use_half_precision=False)
+
+        class TinyAdaClip(nn.Module):
+            def __init__(self) -> None:
+                super().__init__()
+                self.text_prompter = nn.Parameter(torch.tensor([0.1]))
+                self.visual_prompter = nn.Parameter(torch.tensor([0.2]))
+                self.patch_token_layer = nn.Parameter(torch.tensor([0.3]))
+                self.cls_token_layer = nn.Parameter(torch.tensor([0.4]))
+                self.dynamic_visual_prompt_generator = nn.Parameter(torch.tensor([0.5]))
+                self.dynamic_text_prompt_generator = nn.Parameter(torch.tensor([0.6]))
+                self.backbone_weight = nn.Parameter(torch.tensor([1.0]))
+
+        tiny = TinyAdaClip()
+        detector._adaclip_model = tiny  # type: ignore[assignment]
+        detector._ensure_model_loaded = lambda: None  # type: ignore[method-assign]
+
+        detector.freeze()
+        assert all(not p.requires_grad for p in tiny.parameters())
+
+        detector.unfreeze()
+        named = dict(tiny.named_parameters())
+        adapter_names = [
+            "text_prompter",
+            "visual_prompter",
+            "patch_token_layer",
+            "cls_token_layer",
+            "dynamic_visual_prompt_generator",
+            "dynamic_text_prompt_generator",
+        ]
+        for n in adapter_names:
+            assert named[n].requires_grad
+        assert not named["backbone_weight"].requires_grad
+
+        initial = {k: v.detach().clone() for k, v in named.items()}
+        opt = torch.optim.SGD([p for p in tiny.parameters() if p.requires_grad], lr=0.1)
+        loss = sum((p**2).sum() for p in tiny.parameters() if p.requires_grad)
+        loss.backward()
+        opt.step()
+
+        for n in adapter_names:
+            assert not torch.allclose(named[n].detach(), initial[n])
+        assert torch.allclose(named["backbone_weight"].detach(), initial["backbone_weight"])
 
     def test_detector_serialization(self) -> None:
         """Test that AdaCLIPDetector can be serialized via hparams."""

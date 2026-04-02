@@ -53,6 +53,17 @@ class AdaCLIPDetector(Node):
     The node uses lazy loading to avoid initializing the model until
     it's actually needed (first forward pass). The underlying AdaCLIP model
     is registered as a submodule so that ``state_dict()`` captures its weights.
+
+    Fine-tuning support
+    -------------------
+    When ``pipeline.unfreeze_nodes_by_name(["adaclip"])`` is called, only the
+    lightweight adapter layers (~10 M params) become trainable while the CLIP
+    backbone (~890 MB) stays frozen.  Set ``enable_gradients=True`` and
+    ``use_half_precision=False`` for any gradient-based training.
+
+    When ``training_aggregation`` is False the upstream model returns per-layer
+    anomaly maps (a list) which matches the paper's per-layer loss computation.
+    At inference time ``aggregation=True`` is always used regardless of the flag.
     """
 
     _category = NodeCategory.MODEL
@@ -66,6 +77,14 @@ class AdaCLIPDetector(Node):
             NodeTag.LEARNABLE,
             NodeTag.TORCH,
         }
+    )
+    ADAPTER_MODULE_NAMES: tuple[str, ...] = (
+        "text_prompter",
+        "visual_prompter",
+        "patch_token_layer",
+        "cls_token_layer",
+        "dynamic_visual_prompt_generator",
+        "dynamic_text_prompt_generator",
     )
 
     INPUT_SPECS = {
@@ -87,6 +106,25 @@ class AdaCLIPDetector(Node):
             shape=(-1,),
             description="Image-level anomaly score [B]",
         ),
+        "per_layer_scores": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, -1),
+            description=(
+                "Per-layer softmaxed anomaly maps stacked as [B, num_layers*2, H, W]. "
+                "Only populated during training when training_aggregation=False. "
+                "Empty (1×1) tensor otherwise."
+            ),
+            optional=True,
+        ),
+        "image_score_2ch": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1),
+            description=(
+                "Image-level 2-channel score [B, 2] (softmaxed [normal, anomaly]). "
+                "Only populated during training when training_aggregation=False."
+            ),
+            optional=True,
+        ),
     }
 
     def __init__(
@@ -98,13 +136,13 @@ class AdaCLIPDetector(Node):
         prompting_depth: int = 4,
         prompting_length: int = 5,
         gaussian_sigma: float = 4.0,
-        use_half_precision: bool = True,  # Enable FP16 for faster inference
-        enable_warmup: bool = True,  # Warmup runs to optimize CUDA kernels
-        enable_gradients: bool = False,  # If True, allow gradients to flow through AdaCLIP
-        use_torch_preprocess: bool = True,  # If True, use fast tensor preprocessing; if False, use PIL (exact match)
+        use_half_precision: bool = True,
+        enable_warmup: bool = True,
+        enable_gradients: bool = False,
+        use_torch_preprocess: bool = True,
+        training_aggregation: bool = True,
         **kwargs: Any,
     ) -> None:
-        # Pass all serializable arguments to super().__init__ for proper hparams capture
         super().__init__(
             weight_name=weight_name,
             backbone=backbone,
@@ -117,6 +155,7 @@ class AdaCLIPDetector(Node):
             enable_warmup=enable_warmup,
             enable_gradients=enable_gradients,
             use_torch_preprocess=use_torch_preprocess,
+            training_aggregation=training_aggregation,
             **kwargs,
         )
 
@@ -131,6 +170,7 @@ class AdaCLIPDetector(Node):
         self.enable_warmup = enable_warmup
         self.enable_gradients = enable_gradients
         self.use_torch_preprocess = use_torch_preprocess
+        self.training_aggregation = training_aggregation
         self._warmup_done = False
 
         # Log initialization parameters at DEBUG level (only shown if debug logging enabled)
@@ -247,6 +287,41 @@ class AdaCLIPDetector(Node):
         # Enable cuDNN benchmarking for consistent input sizes
         if torch.cuda.is_available():
             torch.backends.cudnn.benchmark = True
+
+    # ------------------------------------------------------------------
+    # Freeze / unfreeze — selective adapter-layer support
+    # ------------------------------------------------------------------
+
+    def unfreeze(self) -> None:
+        """Unfreeze only the lightweight adapter layers for fine-tuning.
+
+        The CLIP backbone remains frozen.  Only the six adapter module groups
+        defined in ``ADAPTER_MODULE_NAMES`` get ``requires_grad_(True)``.
+
+        This is called automatically by
+        ``pipeline.unfreeze_nodes_by_name(["adaclip"])``.
+        """
+        self._ensure_model_loaded()
+        assert self._adaclip_model is not None
+
+        n_unfrozen = 0
+        for name, param in self._adaclip_model.named_parameters():
+            if any(adapter in name for adapter in self.ADAPTER_MODULE_NAMES):
+                param.requires_grad_(True)
+                n_unfrozen += 1
+
+        self._frozen = False
+        logger.info(
+            f"[AdaCLIPDetector] Unfroze {n_unfrozen} adapter parameters "
+            f"(backbone stays frozen)"
+        )
+
+    def freeze(self) -> None:
+        """Freeze all parameters (adapter layers + backbone)."""
+        if self._adaclip_model is not None:
+            for param in self._adaclip_model.parameters():
+                param.requires_grad_(False)
+        self._frozen = True
 
     def _preprocess_rgb_torch_pil_match(self, rgb_bhwc: torch.Tensor) -> torch.Tensor:
         """Torch implementation that closely matches the PIL pipeline.
@@ -459,17 +534,19 @@ class AdaCLIPDetector(Node):
             except Exception as e:
                 logger.warning(f"[AdaCLIPDetector]   Warmup failed: {e}, continuing without warmup")
 
+        # Decide aggregation: use per-layer outputs during training when
+        # training_aggregation is False (matches the paper's per-layer loss).
+        # Always aggregate at inference time.
+        use_aggregation = True
+        if self.training and not self.training_aggregation:
+            use_aggregation = False
+
         # Run inference
         if torch.cuda.is_available():
             torch.cuda.synchronize()
         inference_start = time.perf_counter()
-        # Gradients are disabled by default (inference mode). When
-        # enable_gradients=True, we allow autograd to track operations so that
-        # upstream nodes (e.g., channel selectors) can be trained using losses
-        # defined on AdaCLIP outputs, while AdaCLIP weights remain frozen.
         grad_ctx = nullcontext if self.enable_gradients else torch.no_grad
         with grad_ctx():
-            # Use autocast for additional speedup (works with FP16)
             if self.use_half_precision and torch.cuda.is_available():
                 with torch.amp.autocast("cuda", dtype=torch.float16):
                     anomaly_map, anomaly_score = self._adaclip_model.predict(
@@ -477,6 +554,7 @@ class AdaCLIPDetector(Node):
                         prompt=self.prompt_text,
                         sigma=self.gaussian_sigma,
                         enable_gradients=self.enable_gradients,
+                        aggregation=use_aggregation,
                     )
             else:
                 anomaly_map, anomaly_score = self._adaclip_model.predict(
@@ -484,6 +562,7 @@ class AdaCLIPDetector(Node):
                     prompt=self.prompt_text,
                     sigma=self.gaussian_sigma,
                     enable_gradients=self.enable_gradients,
+                    aggregation=use_aggregation,
                 )
         if torch.cuda.is_available():
             torch.cuda.synchronize()
@@ -492,27 +571,70 @@ class AdaCLIPDetector(Node):
 
         logger.debug(
             f"[AdaCLIPDetector] Inference time: {inference_time_ms:.1f}ms "
-            f"(batch_size={b}, per_image={inference_time_ms / b:.1f}ms)"
+            f"(batch_size={b}, per_image={inference_time_ms / b:.1f}ms, "
+            f"aggregation={use_aggregation})"
         )
 
-        # DEBUG: Log raw output stats before postprocessing (TRACE level - not shown by default)
+        # Per-layer raw tensor for the loss node (only in training with
+        # training_aggregation=False).  Shape: [B, num_layers*2, H, W].
+        per_layer_scores = torch.zeros(1, 1, 1, 1, device=img_tensor.device)
+        image_score_2ch = anomaly_score  # fallback: may be [B] or [B, 2]
+
+        if isinstance(anomaly_map, list):
+            # anomaly_map is a list of per-layer softmaxed maps [B, 2, Hm, Wm].
+            # Resize each to original (h, w) and stack for the loss port.
+            resized_layers = []
+            for am in anomaly_map:
+                am_up = torch.nn.functional.interpolate(
+                    am, size=(h, w), mode="bilinear", align_corners=True,
+                )
+                resized_layers.append(am_up)  # [B, 2, h, w]
+            per_layer_scores = torch.cat(resized_layers, dim=1)  # [B, num_layers*2, h, w]
+
+            # image_score_2ch: keep the raw [B, 2] softmaxed score
+            image_score_2ch = anomaly_score  # already [B, 2] from upstream
+
+            # Build the aggregated scores for metrics/viz (same formula as
+            # upstream aggregation=True path).
+            stacked = torch.stack(resized_layers, dim=0)          # [L, B, 2, h, w]
+            agg = torch.mean(stacked, dim=0)                      # [B, 2, h, w]
+            agg = torch.softmax(agg, dim=1)
+            anomaly_map = (agg[:, 1:, :, :] + 1 - agg[:, 0:1, :, :]) / 2.0  # [B, 1, h, w]
+            anomaly_map = anomaly_map.squeeze(1)                  # [B, h, w]
+            anomaly_score_1d = anomaly_score[:, 1]                # scalar per image
+        else:
+            anomaly_score_1d = anomaly_score
+            # Ensure image_score_2ch is [B, 2] even in aggregated mode
+            if anomaly_score.dim() == 1:
+                image_score_2ch = torch.stack([1 - anomaly_score, anomaly_score], dim=1)
+
         logger.trace(
             f"[AdaCLIPDetector] Raw anomaly_map: shape={anomaly_map.shape}, "
             f"min={anomaly_map.min().item():.6f}, max={anomaly_map.max().item():.6f}, "
             f"mean={anomaly_map.mean().item():.6f}"
         )
-        logger.trace(f"[AdaCLIPDetector] Raw anomaly_score: {anomaly_score.tolist()}")
 
-        # Resize anomaly map back to original size if needed
-        if anomaly_map.shape[1] != h or anomaly_map.shape[2] != w:
+        # Resize aggregated anomaly map if needed (aggregated path already resized above)
+        if anomaly_map.shape[-2] != h or anomaly_map.shape[-1] != w:
             input_dtype = anomaly_map.dtype
-            anomaly_map = torch.nn.functional.interpolate(
-                anomaly_map.unsqueeze(1),  # [B, 1, h, w]
-                size=(h, w),
-                mode="bilinear",
-                align_corners=False,
-            ).squeeze(1)  # [B, H, W]
-        anomaly_map = anomaly_map.to(input_dtype)
+            if anomaly_map.dim() == 3:
+                anomaly_map = torch.nn.functional.interpolate(
+                    anomaly_map.unsqueeze(1),
+                    size=(h, w),
+                    mode="bilinear",
+                    align_corners=False,
+                ).squeeze(1)
+            else:
+                anomaly_map = torch.nn.functional.interpolate(
+                    anomaly_map,
+                    size=(h, w),
+                    mode="bilinear",
+                    align_corners=False,
+                )
+            anomaly_map = anomaly_map.to(input_dtype)
+
+        if anomaly_map.dim() == 4 and anomaly_map.shape[1] == 1:
+            anomaly_map = anomaly_map.squeeze(1)
 
         scores = anomaly_map.unsqueeze(-1)  # [B, H, W, 1]
 
@@ -551,7 +673,9 @@ class AdaCLIPDetector(Node):
 
         return {
             "scores": scores,
-            "anomaly_score": anomaly_score,
+            "anomaly_score": anomaly_score_1d if anomaly_score_1d.dim() == 1 else anomaly_score_1d.squeeze(),
+            "per_layer_scores": per_layer_scores,
+            "image_score_2ch": image_score_2ch,
         }
 
     # def _save_debug_tensor(
