@@ -312,8 +312,7 @@ class AdaCLIPDetector(Node):
 
         self._frozen = False
         logger.info(
-            f"[AdaCLIPDetector] Unfroze {n_unfrozen} adapter parameters "
-            f"(backbone stays frozen)"
+            f"[AdaCLIPDetector] Unfroze {n_unfrozen} adapter parameters (backbone stays frozen)"
         )
 
     def freeze(self) -> None:
@@ -586,7 +585,10 @@ class AdaCLIPDetector(Node):
             resized_layers = []
             for am in anomaly_map:
                 am_up = torch.nn.functional.interpolate(
-                    am, size=(h, w), mode="bilinear", align_corners=True,
+                    am,
+                    size=(h, w),
+                    mode="bilinear",
+                    align_corners=True,
                 )
                 resized_layers.append(am_up)  # [B, 2, h, w]
             per_layer_scores = torch.cat(resized_layers, dim=1)  # [B, num_layers*2, h, w]
@@ -596,12 +598,12 @@ class AdaCLIPDetector(Node):
 
             # Build the aggregated scores for metrics/viz (same formula as
             # upstream aggregation=True path).
-            stacked = torch.stack(resized_layers, dim=0)          # [L, B, 2, h, w]
-            agg = torch.mean(stacked, dim=0)                      # [B, 2, h, w]
+            stacked = torch.stack(resized_layers, dim=0)  # [L, B, 2, h, w]
+            agg = torch.mean(stacked, dim=0)  # [B, 2, h, w]
             agg = torch.softmax(agg, dim=1)
             anomaly_map = (agg[:, 1:, :, :] + 1 - agg[:, 0:1, :, :]) / 2.0  # [B, 1, h, w]
-            anomaly_map = anomaly_map.squeeze(1)                  # [B, h, w]
-            anomaly_score_1d = anomaly_score[:, 1]                # scalar per image
+            anomaly_map = anomaly_map.squeeze(1)  # [B, h, w]
+            anomaly_score_1d = anomaly_score[:, 1]  # scalar per image
         else:
             anomaly_score_1d = anomaly_score
             # Ensure image_score_2ch is [B, 2] even in aggregated mode
@@ -673,7 +675,9 @@ class AdaCLIPDetector(Node):
 
         return {
             "scores": scores,
-            "anomaly_score": anomaly_score_1d if anomaly_score_1d.dim() == 1 else anomaly_score_1d.squeeze(),
+            "anomaly_score": anomaly_score_1d
+            if anomaly_score_1d.dim() == 1
+            else anomaly_score_1d.squeeze(),
             "per_layer_scores": per_layer_scores,
             "image_score_2ch": image_score_2ch,
         }
