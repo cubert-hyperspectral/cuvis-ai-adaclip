@@ -23,6 +23,11 @@ jobs:
       image: cubertgmbh/cuvis_pyil:3.5.0-ubuntu24.04
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Mark workspace as safe for git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Install system dependencies
         run: |
