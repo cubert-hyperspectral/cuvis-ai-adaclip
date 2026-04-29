@@ -46,6 +46,8 @@ dependencies = [
     "torchaudio",
     "click", # For CLI interface
     "pandas>=2.3.0",
+    # Used by cuvis_ai_adaclip.weights to fetch model weights from Google Drive.
+    "gdown",
 ]
 
 [project.optional-dependencies]
