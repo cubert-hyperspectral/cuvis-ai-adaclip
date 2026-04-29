@@ -30,6 +30,7 @@ dependencies = [
     "cuvis==3.5.0",
     "cuvis-ai",
     "cuvis-ai-core",
+    "cuvis-ai-schemas>=0.4.0",
     # Extra dependencies specific to AdaCLIP usage that are not guaranteed by cuvis_ai.
     # Note: Some dependencies like numpy and scikit-image are provided by cuvis-ai-core.
     # Torch/torchvision are aligned with cuvis-ai-core (>=2.9.1, pytorch-cu128).
@@ -45,6 +46,8 @@ dependencies = [
     "torchaudio",
     "click", # For CLI interface
     "pandas>=2.3.0",
+    # Used by cuvis_ai_adaclip.weights to fetch model weights from Google Drive.
+    "gdown",
 ]
 
 [project.optional-dependencies]
@@ -81,11 +84,6 @@ model_configs = ["*.json"]
 [tool.uv.sources]
 torch = { index = "pytorch-cu128" }
 torchvision = { index = "pytorch-cu128" }
-
-# Git-based dependencies (active)
-cuvis-ai = { git = "https://github.com/cubert-hyperspectral/cuvis-ai.git", branch = "nima/features/consolidation" }
-cuvis-ai-core = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-core.git", branch = "main" }
-
 # Local development alternatives (uncomment to use local paths instead)
 # cuvis-ai = { path = "../cuvis-ai", editable = true }
 # cuvis-ai-core = { path = "../cuvis-ai-core", editable = true }

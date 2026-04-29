@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## 0.1.3 - 2026-04-29
+
+- Annotated `AdaCLIPDetector` with `_category = NodeCategory.MODEL` and `_tags = {RGB, IMAGE, ANOMALY, MASK, INFERENCE, LEARNABLE, TORCH}` ClassVars so the node surfaces under the correct category and tag filters in the cuvis-ai palette.
+- Pinned `cuvis-ai-schemas>=0.4.0` directly in dependencies (`NodeCategory` / `NodeTag` enums were added there in v0.4.0).
+- Dropped `cuvis-ai` and `cuvis-ai-core` git branch overrides from `[tool.uv.sources]`; the whole cuvis stack now resolves from PyPI.
+- Stripped `hash` fields from `torch` / `torchvision` wheel entries in `uv.lock`.
+
 ## 0.1.2 - 2026-02-25
 
 - Updated cuvis-ai node module paths: `band_selection` → `channel_selector`, `selector` → `channel_selector`, `visualizations` → `anomaly_visualization` (ALL-5300 Steps 1-9)
