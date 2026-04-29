@@ -17,6 +17,7 @@ from typing import Any
 import numpy as np
 import torch
 from cuvis_ai_core.node.node import Node
+from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.execution import Context
 from cuvis_ai_schemas.pipeline import PortSpec
 from PIL import Image
@@ -53,6 +54,19 @@ class AdaCLIPDetector(Node):
     it's actually needed (first forward pass). The underlying AdaCLIP model
     is registered as a submodule so that ``state_dict()`` captures its weights.
     """
+
+    _category = NodeCategory.MODEL
+    _tags = frozenset(
+        {
+            NodeTag.RGB,
+            NodeTag.IMAGE,
+            NodeTag.ANOMALY,
+            NodeTag.MASK,
+            NodeTag.INFERENCE,
+            NodeTag.LEARNABLE,
+            NodeTag.TORCH,
+        }
+    )
 
     INPUT_SPECS = {
         "rgb_image": PortSpec(
