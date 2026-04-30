@@ -306,7 +306,10 @@ class AdaCLIPDetector(Node):
 
         n_unfrozen = 0
         for name, param in self._adaclip_model.named_parameters():
-            if any(adapter in name for adapter in self.ADAPTER_MODULE_NAMES):
+            if any(
+                name == adapter or name.startswith(adapter + ".")
+                for adapter in self.ADAPTER_MODULE_NAMES
+            ):
                 param.requires_grad_(True)
                 n_unfrozen += 1
 
@@ -574,8 +577,9 @@ class AdaCLIPDetector(Node):
             f"aggregation={use_aggregation})"
         )
 
-        # Per-layer raw tensor for the loss node (only in training with
-        # training_aggregation=False).  Shape: [B, num_layers*2, H, W].
+        # Placeholder for loss-port compatibility when per-layer outputs are absent.
+        # Consumer contract: shape[1] == 1 means placeholder; real stacked per-layer
+        # scores have shape [B, num_layers*2, H, W] with shape[1] > 1.
         per_layer_scores = torch.zeros(1, 1, 1, 1, device=img_tensor.device)
         image_score_2ch = anomaly_score  # fallback: may be [B] or [B, 2]
 
@@ -607,6 +611,8 @@ class AdaCLIPDetector(Node):
         else:
             anomaly_score_1d = anomaly_score
             # Ensure image_score_2ch is [B, 2] even in aggregated mode
+            # This [1-p, p] is a fallback representation, not identical to the
+            # upstream training-mode 2-channel softmax distribution.
             if anomaly_score.dim() == 1:
                 image_score_2ch = torch.stack([1 - anomaly_score, anomaly_score], dim=1)
 

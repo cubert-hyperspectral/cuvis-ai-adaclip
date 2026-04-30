@@ -228,7 +228,7 @@ class TextEmbebddingLayer(nn.Module):
             "{} with flaw",
             "{} with defect",
             "{} with damage",
-            "clean {}",
+            "dirty {}",
             "{} with foreign object",
             "{} with contamination",
         ]
