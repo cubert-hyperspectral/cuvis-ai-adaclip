@@ -63,7 +63,7 @@ pipeline.connect(
 )
 ```
 
-See [cuvis_ai_adaclip/examples_cuvis/README.md](cuvis_ai_adaclip/examples_cuvis/README.md) for complete examples.
+See [examples/statistical/README.md](examples/statistical/README.md) for complete examples.
 
 ### Plugin Usage (Production)
 
@@ -149,7 +149,7 @@ This repository includes comprehensive examples demonstrating different band sel
 
 ### Python Examples (Direct Import)
 
-See **[cuvis_ai_adaclip/examples_cuvis/README.md](cuvis_ai_adaclip/examples_cuvis/README.md)** for complete documentation.
+See **[examples/statistical/README.md](examples/statistical/README.md)** for complete documentation.
 
 Available examples:
 - **Baseline**: Fixed false-RGB (650/550/450 nm)
@@ -160,7 +160,7 @@ Available examples:
 
 Quick start:
 ```bash
-uv run python cuvis_ai_adaclip/examples_cuvis/statistical_baseline.py \
+uv run python examples/statistical/statistical_baseline.py \
     --backbone-name ViT-L-14-336 \
     --pretrained-adaclip pretrained_all \
     --visualize-upto 5

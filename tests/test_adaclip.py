@@ -706,39 +706,31 @@ class TestPipelineIntegration:
 class TestStatisticalScripts:
     """Smoke tests for statistical_*.py example scripts."""
 
-    def test_statistical_baseline_imports(self) -> None:
-        """Test that statistical_baseline.py can be imported."""
+    @staticmethod
+    def _import_script_from_path(script_name: str) -> None:
+        import importlib.util
         import sys
         from pathlib import Path
 
         project_root = Path(__file__).resolve().parents[1]
-        if str(project_root) not in sys.path:
-            sys.path.insert(0, str(project_root))
+        script_path = project_root / "examples" / "statistical" / script_name
+        spec = importlib.util.spec_from_file_location(script_name.replace(".py", ""), script_path)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module.__name__] = module
+        spec.loader.exec_module(module)
 
-        # Just test that the module can be imported
-        from cuvis_ai_adaclip.examples_cuvis import statistical_baseline  # noqa: F401
+    def test_statistical_baseline_imports(self) -> None:
+        """Test that statistical_baseline.py can be imported."""
+        self._import_script_from_path("statistical_baseline.py")
 
     def test_statistical_cir_false_color_imports(self) -> None:
         """Test that statistical_cir_false_color.py can be imported."""
-        import sys
-        from pathlib import Path
-
-        project_root = Path(__file__).resolve().parents[1]
-        if str(project_root) not in sys.path:
-            sys.path.insert(0, str(project_root))
-
-        from cuvis_ai_adaclip.examples_cuvis import statistical_cir_false_color  # noqa: F401
+        self._import_script_from_path("statistical_cir_false_color.py")
 
     def test_statistical_supervised_cir_imports(self) -> None:
         """Test that statistical_supervised_cir.py can be imported."""
-        import sys
-        from pathlib import Path
-
-        project_root = Path(__file__).resolve().parents[1]
-        if str(project_root) not in sys.path:
-            sys.path.insert(0, str(project_root))
-
-        from cuvis_ai_adaclip.examples_cuvis import statistical_supervised_cir  # noqa: F401
+        self._import_script_from_path("statistical_supervised_cir.py")
 
 
 # ============================================================================

@@ -16,7 +16,7 @@ from .adaclip_upstream import (  # noqa: F401
     download_weights,
     list_available_weights,
 )
-from .node import AdaCLIPDetector  # noqa: F401
+from .node import AdaCLIPDetector, AdaCLIPFocalDiceLoss, LossNode  # noqa: F401
 from .weights import ADACLIP_WEIGHTS, get_weights_dir  # noqa: F401
 
 
@@ -37,11 +37,13 @@ def register_all_nodes() -> int:
 __all__ = [
     "ADACLIP_WEIGHTS",
     "AdaCLIPDetector",
+    "AdaCLIPFocalDiceLoss",
     "AdaCLIPModel",
     "create_adaclip_model",
     "download_weights",
     "get_weights_dir",
     "list_available_weights",
+    "LossNode",
     "OPENAI_DATASET_MEAN",
     "OPENAI_DATASET_STD",
     "register_all_nodes",
