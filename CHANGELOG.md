@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## 0.2.0 - 2026-04-27
+
+- Added training-path support in `AdaCLIPDetector` for non-aggregated outputs (`per_layer_scores`, `image_score_2ch`) while preserving aggregated inference behavior.
+- Added `training_aggregation` constructor parameter (default `True`) to control train-time per-layer vs aggregated behavior.
+- Added selective adapter-layer freeze/unfreeze so `pipeline.unfreeze_nodes_by_name(["adaclip"])` updates adapter module groups while keeping the CLIP backbone frozen.
+- Added prompt template coverage for `clean / foreign object / contamination` patterns and fixed abnormal prompt duplication (`clean {}` -> `dirty {}`) to preserve normal/anomaly contrast.
+- Fixed upstream `predict()` smoothing behavior to skip Gaussian smoothing when per-layer list outputs are returned (`aggregation=False`).
+- Added `predict(**_kwargs)` forward-compatibility path in the upstream wrapper.
+- CI: mark workspace as `git safe.directory` for editable installs.
+- Cross-repo alignment: AdaCLIP-specific training-path review items deferred from `cubert-hyperspectral/cuvis-ai#20` are handled in plugin scope here.
+
 ## 0.1.3 - 2026-04-29
 
 - Annotated `AdaCLIPDetector` with `_category = NodeCategory.MODEL` and `_tags = {RGB, IMAGE, ANOMALY, MASK, INFERENCE, LEARNABLE, TORCH}` ClassVars so the node surfaces under the correct category and tag filters in the cuvis-ai palette.
