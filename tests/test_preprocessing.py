@@ -5,9 +5,10 @@ Tests pure tensor operations on CPU — no GPU or weight downloads needed.
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
 import pytest
 import torch
-from unittest.mock import MagicMock
 
 from cuvis_ai_adaclip import AdaCLIPDetector, AdaCLIPModel
 
