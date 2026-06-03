@@ -26,14 +26,19 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    # Rely on cuvis_ai to provide the torch / torchvision / numpy stack and most deps.
+    # cuvis-ai-core provides the torch / torchvision / numpy stack, the Node base
+    # class, and the plugin system. The cuvis-ai node catalog is NOT needed here.
     "cuvis==3.5.0",
-    "cuvis-ai",
     "cuvis-ai-core",
     "cuvis-ai-schemas>=0.4.0",
-    # Extra dependencies specific to AdaCLIP usage that are not guaranteed by cuvis_ai.
+    # Extra dependencies specific to AdaCLIP usage that are not guaranteed by cuvis-ai-core.
     # Note: Some dependencies like numpy and scikit-image are provided by cuvis-ai-core.
     # Torch/torchvision are aligned with cuvis-ai-core (>=2.9.1, pytorch-cu128).
+    # AdaCLIP's CLIP backbone + HuggingFace stack — previously pulled in transitively
+    # via the cuvis-ai node catalog; now declared explicitly (the catalog was dropped).
+    "open-clip-torch",
+    "transformers",
+    "huggingface-hub",
     "tqdm",
     "tensorboard",
     "opencv-python",
@@ -84,9 +89,8 @@ model_configs = ["*.json"]
 [tool.uv.sources]
 torch = { index = "pytorch-cu128" }
 torchvision = { index = "pytorch-cu128" }
-# Local development alternatives (uncomment to use local paths instead)
-# cuvis-ai = { path = "../cuvis-ai", editable = true }
-# cuvis-ai-core = { path = "../cuvis-ai-core", editable = true }
+# Local development alternative (uncomment to use a local checkout instead)
+# cuvis-ai-core = { path = "../../cuvis-ai-core/cuvis-ai-core", editable = true }
 
 [[tool.uv.index]]
 name = "pytorch-cu128"
