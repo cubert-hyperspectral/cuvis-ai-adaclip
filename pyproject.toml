@@ -29,8 +29,8 @@ dependencies = [
     # cuvis-ai-core provides the torch / torchvision / numpy stack, the Node base
     # class, and the plugin system. The cuvis-ai node catalog is NOT needed here.
     "cuvis==3.5.0",
-    "cuvis-ai-core",
-    "cuvis-ai-schemas>=0.4.0",
+    "cuvis-ai-core>=0.7.0",
+    "cuvis-ai-schemas>=0.5.2",
     # Extra dependencies specific to AdaCLIP usage that are not guaranteed by cuvis-ai-core.
     # Note: Some dependencies like numpy and scikit-image are provided by cuvis-ai-core.
     # Torch/torchvision are aligned with cuvis-ai-core (>=2.9.1, pytorch-cu128).
