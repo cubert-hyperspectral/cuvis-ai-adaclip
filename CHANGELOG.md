@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## 0.1.4 - 2026-06-10
+
+- Require `cuvis-ai-core>=0.7.1` and `cuvis-ai-schemas>=0.5.2` (inherits the upstream security floors transitively).
+- Declared the bare-name `plugins:` block (`adaclip`, `cuvis_ai_builtin`) in all eight pipeline configs.
+- Added the `cuvis_ai_compat.yml` dependency-compatibility workflow (audits the plugin's deps against the cuvis-ai-core lock).
+- Removed the redundant `tests/test_adaclip.py` (covered by `test_cuvis_ai_adaclip.py` and the unit-test files); the integration tests now skip cleanly when the cuvis-ai node catalog is absent.
+- Stripped `torch` / `torchvision` wheel hashes from `uv.lock`.
+
 ## 0.1.3 - 2026-04-29
 
 - Annotated `AdaCLIPDetector` with `_category = NodeCategory.MODEL` and `_tags = {RGB, IMAGE, ANOMALY, MASK, INFERENCE, LEARNABLE, TORCH}` ClassVars so the node surfaces under the correct category and tag filters in the cuvis-ai palette.

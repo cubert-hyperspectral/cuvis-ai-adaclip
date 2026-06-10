@@ -1,0 +1,52 @@
+name: cuvis-ai compatibility
+
+# Plugin-vs-core dependency compatibility gate. Verifies this plugin's
+# dependency specifiers still admit the versions cuvis-ai-core locks for the
+# release the plugin targets. Catches upstream constraint drift (P13) at PR
+# time — and on a weekly cron, so a new core release that tightens a shared
+# dependency turns this red as a "core moved, react" signal rather than
+# surfacing at a user's first pipeline run.
+
+on:
+  pull_request:
+    paths: ["pyproject.toml", "uv.lock"]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1" # weekly, Monday 06:00 UTC
+
+permissions:
+  contents: read
+
+env:
+  # cuvis-ai-core ref to audit against. Pin to the release tag this plugin
+  # targets (its pyproject `cuvis-ai-core>=X`); `main` tracks the latest.
+  CORE_REF: main
+
+jobs:
+  compat:
+    name: Audit plugin deps against core lock
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Fetch audit script + core lock from cuvis-ai-core
+        run: |
+          base="https://raw.githubusercontent.com/cubert-hyperspectral/cuvis-ai-core/${CORE_REF}"
+          mkdir -p core
+          curl -fsSL "${base}/scripts/audit_plugin_deps.py" -o audit_plugin_deps.py
+          curl -fsSL "${base}/uv.lock" -o core/uv.lock
+
+      # The audit only reads pyproject.toml + uv.lock, so run it in a tiny
+      # ephemeral environment instead of installing cuvis-ai-core in full.
+      - name: Audit this plugin against the core lock
+        run: >
+          uv run --no-project --python 3.11 --with click --with packaging
+          python audit_plugin_deps.py
+          --check plugins
+          --plugin-pyproject ./pyproject.toml
+          --against-core core
+          --strict
