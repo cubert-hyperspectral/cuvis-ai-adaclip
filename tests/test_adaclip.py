@@ -53,14 +53,26 @@ except ImportError:
     get_weights_dir = None  # type: ignore[assignment, misc]
     list_available_weights = None  # type: ignore[assignment, misc]
 
+# These tests wire pipelines from cuvis_ai nodes (band selectors, data nodes). The plugin
+# itself depends only on cuvis-ai-core / cuvis-ai-schemas, never on the cuvis-ai node
+# catalog, so skip cleanly when it is not importable (this repo's CI) and run when it is
+# installed (local dev).
+try:
+    import cuvis_ai  # noqa: F401
+
+    CUVIS_AI_AVAILABLE = True
+except ImportError:
+    CUVIS_AI_AVAILABLE = False
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-# Skip all tests in this module if plugin is not available
+# Skip all tests in this module unless both the plugin and the cuvis-ai node catalog are present.
 pytestmark = pytest.mark.skipif(
-    not ADACLIP_PLUGIN_AVAILABLE,
-    reason="cuvis_ai_adaclip plugin not available. Install the AdaCLIP-cuvis plugin to run these tests.",
+    not (ADACLIP_PLUGIN_AVAILABLE and CUVIS_AI_AVAILABLE),
+    reason="Requires the cuvis_ai_adaclip plugin and the cuvis-ai node catalog. "
+    "Install both to run these pipeline-integration tests.",
 )
 
 
