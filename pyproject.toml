@@ -28,7 +28,6 @@ classifiers = [
 dependencies = [
     # cuvis-ai-core provides the torch / torchvision / numpy stack, the Node base
     # class, and the plugin system. The cuvis-ai node catalog is NOT needed here.
-    "cuvis==3.5.0",
     "cuvis-ai-core>=0.8.0",
     "cuvis-ai-schemas>=0.6.0",
     # Extra dependencies specific to AdaCLIP usage that are not guaranteed by cuvis-ai-core.
@@ -56,6 +55,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+examples = [
+    # cuvis-ai 0.9.0 dropped the cuvis SDK dependency, so the examples pull no SDK.
+    "cuvis-ai>=0.9.0",
+    "loguru",
+]
 dev = [
     "ipython",
     "pytest",

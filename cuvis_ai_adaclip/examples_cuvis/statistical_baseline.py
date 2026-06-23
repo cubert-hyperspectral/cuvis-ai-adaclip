@@ -22,7 +22,7 @@ from cuvis_ai.node.channel_selector import FixedWavelengthSelector
 from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
-from cuvis_ai_core.data.datasets import SingleCu3sDataModule
+from cuvis_ai_dataloader.data import Cu3sDataModule
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_core.training import StatisticalTrainer
 from cuvis_ai_core.training.config import (
@@ -71,7 +71,7 @@ def main(**kwargs) -> None:
     # ----------------------------
     # Data & weights
     # ----------------------------
-    datamodule = SingleCu3sDataModule(**data_config)
+    datamodule = Cu3sDataModule(**data_config)
     datamodule.setup(stage=None)
 
     wavelengths = datamodule.train_ds.wavelengths

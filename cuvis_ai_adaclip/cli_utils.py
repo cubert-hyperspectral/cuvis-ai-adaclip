@@ -10,6 +10,8 @@ import click
 import torch
 from loguru import logger
 
+from cuvis_ai_schemas.training.data import DataSplitConfig, Selector, SelectorKind
+
 from cuvis_ai_adaclip import (
     list_available_weights,
 )
@@ -310,20 +312,36 @@ class AdaCLIPCLI:
 
     def parse_data_config(self, **kwargs) -> dict[str, Any]:
         """Parse data configuration from CLI arguments."""
+        cu3s = kwargs.get("cu3s_file_path", "data/Lentils/Lentils_000.cu3s")
+
+        def _ids(key, default):
+            return [int(x.strip()) for x in kwargs.get(key, default).split(",")]
+
+        train_ids, val_ids, test_ids = (
+            _ids("train_ids", "0,2"),
+            _ids("val_ids", "2,4"),
+            _ids("test_ids", "1,3,5"),
+        )
+
+        def _sel(ids):
+            return [Selector(kind=SelectorKind.FILE_INDICES, source=cu3s, ids=ids)]
+
         return {
-            "cu3s_file_path": kwargs.get(
-                "cu3s_file_path",
-                "C:/Users/anish.raj/projects/gitlab_cuvis_ai_3/cuvis.ai/data/Lentils/Lentils_000.cu3s",
-            ),
+            "cu3s_file_path": cu3s,
             "annotation_json_path": kwargs.get(
-                "annotation_json_path",
-                "C:/Users/anish.raj/projects/gitlab_cuvis_ai_3/cuvis.ai/data/Lentils/Lentils_000.json",
+                "annotation_json_path", "data/Lentils/Lentils_000.json"
             ),
-            "train_ids": [int(x.strip()) for x in kwargs.get("train_ids", "0,2").split(",")],
-            "val_ids": [int(x.strip()) for x in kwargs.get("val_ids", "2,4").split(",")],
-            "test_ids": [int(x.strip()) for x in kwargs.get("test_ids", "1,3,5").split(",")],
             "batch_size": kwargs.get("batch_size", 4),
             "processing_mode": kwargs.get("processing_mode", "Reflectance"),
+            # leakage_check off: these examples intentionally overlap splits (the
+            # anomaly-detection pattern fits on a subset and scores all frames), which
+            # the old SingleCu3sDataModule did not police.
+            "splits": DataSplitConfig(
+                train=_sel(train_ids),
+                val=_sel(val_ids),
+                test=_sel(test_ids),
+                leakage_check="off",
+            ),
         }
 
     def parse_normal_class_ids(self, class_ids_str) -> list[int]:
