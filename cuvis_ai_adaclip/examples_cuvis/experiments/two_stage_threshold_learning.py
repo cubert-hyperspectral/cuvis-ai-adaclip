@@ -35,9 +35,9 @@ from cuvis_ai.node.channel_selector import (
     SupervisedFullSpectrumSelector,
 )
 from cuvis_ai.node.data import LentilsAnomalyDataNode
-from cuvis_ai_dataloader.data import Cu3sDataModule
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_core.training import StatisticalTrainer
+from cuvis_ai_dataloader.data import Cu3sDataModule
 from cuvis_ai_schemas.enums import ExecutionStage
 from loguru import logger
 from sklearn.metrics import f1_score, precision_recall_curve, roc_auc_score, roc_curve

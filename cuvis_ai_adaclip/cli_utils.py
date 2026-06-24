@@ -8,9 +8,8 @@ from typing import Any
 
 import click
 import torch
-from loguru import logger
-
 from cuvis_ai_schemas.training.data import DataSplitConfig, Selector, SelectorKind
+from loguru import logger
 
 from cuvis_ai_adaclip import (
     list_available_weights,
@@ -314,7 +313,7 @@ class AdaCLIPCLI:
         """Parse data configuration from CLI arguments."""
         cu3s = kwargs.get("cu3s_file_path", "data/Lentils/Lentils_000.cu3s")
 
-        def _ids(key, default):
+        def _ids(key: str, default: str) -> list[int]:
             return [int(x.strip()) for x in kwargs.get(key, default).split(",")]
 
         train_ids, val_ids, test_ids = (
@@ -323,7 +322,7 @@ class AdaCLIPCLI:
             _ids("test_ids", "1,3,5"),
         )
 
-        def _sel(ids):
+        def _sel(ids: list[int]) -> list[Selector]:
             return [Selector(kind=SelectorKind.FILE_INDICES, source=cu3s, ids=ids)]
 
         return {
