@@ -2,13 +2,12 @@
 
 ## [Unreleased]
 
+## 0.1.5 - 2026-06-23
+
+- Require `cuvis-ai-core>=0.10.0` and `cuvis-ai-schemas>=0.7.0`, adopting the released framework versions.
 - Dropped the direct `cuvis` SDK dependency (`cuvis==3.5.0`); the plugin node code never used it. cu3s loading for the examples now comes from the `cuvis-ai-dataloader` plugin.
 - Migrated the `examples_cuvis/` scripts from the removed `cuvis_ai_core.data.datasets.SingleCu3sDataModule` to `cuvis_ai_dataloader.data.Cu3sDataModule`, building train/val/test as `file_indices` selectors in `DataSplitConfig`.
 - Declared `cuvis-ai-dataloader` as a provisioned plugin in `configs/plugins/cuvis_ai_dataloader.yaml` (repo + tag, `[cu3s, coco]` extras) instead of a package dependency, so this plugin's pyproject no longer hard-depends on a sibling plugin. Provision it before running a cu3s example. The `examples` extra keeps only `cuvis-ai>=0.9.0` (which dropped the cuvis SDK) and `loguru`, so neither the plugin nor its examples pull the cuvis SDK.
-
-## 0.1.5 - 2026-06-19
-
-- Require `cuvis-ai-core>=0.8.0` and `cuvis-ai-schemas>=0.6.0`, adopting the released framework versions.
 
 ## 0.1.4 - 2026-06-10
 
