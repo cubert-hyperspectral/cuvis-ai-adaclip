@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Added a `no-local-sources` CI workflow that fails if `pyproject.toml` declares a local `[tool.uv.sources]` path entry (a machine-specific path must not ship in a release).
+
 ## 0.1.5 - 2026-06-23
 
 - Require `cuvis-ai-core>=0.10.0` and `cuvis-ai-schemas>=0.7.0`, adopting the released framework versions.
