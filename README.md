@@ -13,9 +13,26 @@ A **[cuvis.ai](https://github.com/cubert-hyperspectral/cuvis-ai) plugin** for [A
 
 ### Prerequisites
 
-- [cuvis C SDK](https://cloud.cubert-gmbh.de/s/qpxkyWkycrmBK9m) (for .cu3s session files)
 - [uv](https://docs.astral.sh/uv/) (Python dependency manager)
 - [cuvis.ai framework](https://github.com/cubert-hyperspectral/cuvis-ai) (automatically installed as dependency)
+
+The plugin itself does not depend on the cuvis SDK, and it does not hard-depend on the
+sibling `cuvis-ai-dataloader` plugin. The cu3s example scripts under
+`cuvis_ai_adaclip/examples_cuvis/` load `.cu3s` session files through the
+`cuvis-ai-dataloader` plugin, which is declared (not pip-pinned) in
+`configs/plugins/cuvis_ai_dataloader.yaml` and provisioned into the run environment. First
+install the example helpers:
+
+```bash
+uv pip install -e ".[examples]"
+```
+
+Then provision the data plugin from its manifest (this installs `cuvis-ai-dataloader` with
+its `[cu3s, coco]` extras; the cuvis SDK comes transitively through the `cu3s` extra):
+
+```bash
+uv run provision --plugins-dir configs/plugins
+```
 
 ### Setup
 

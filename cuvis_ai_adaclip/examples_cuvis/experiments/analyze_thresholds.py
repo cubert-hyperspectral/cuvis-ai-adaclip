@@ -30,8 +30,8 @@ except ImportError:
 
 from cuvis_ai.node.channel_selector import CIRSelector
 from cuvis_ai.node.data import LentilsAnomalyDataNode
-from cuvis_ai_core.data.datasets import SingleCu3sDataModule
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_dataloader.data import Cu3sDataModule
 from cuvis_ai_schemas.enums import ExecutionStage
 
 from cuvis_ai_adaclip import (
@@ -70,7 +70,7 @@ def main(**kwargs) -> None:
     # ----------------------------
     # Data & weights
     # ----------------------------
-    datamodule = SingleCu3sDataModule(**data_config)
+    datamodule = Cu3sDataModule(**data_config)
     datamodule.setup(stage=None)
 
     wavelengths = datamodule.train_ds.wavelengths

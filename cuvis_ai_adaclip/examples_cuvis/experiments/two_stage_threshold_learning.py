@@ -35,9 +35,9 @@ from cuvis_ai.node.channel_selector import (
     SupervisedFullSpectrumSelector,
 )
 from cuvis_ai.node.data import LentilsAnomalyDataNode
-from cuvis_ai_core.data.datasets import SingleCu3sDataModule
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_core.training import StatisticalTrainer
+from cuvis_ai_dataloader.data import Cu3sDataModule
 from cuvis_ai_schemas.enums import ExecutionStage
 from loguru import logger
 from sklearn.metrics import f1_score, precision_recall_curve, roc_auc_score, roc_curve
@@ -203,7 +203,7 @@ def create_band_selector(
 
 def run_analysis_for_band_selector(
     selector_type: str,
-    datamodule: SingleCu3sDataModule,
+    datamodule: Cu3sDataModule,
     calibration_frames: list[dict],
     validation_frames: list[dict],
     output_dir: Path,
@@ -1040,7 +1040,7 @@ def main(**kwargs) -> None:
         logger.info("Forcing only test split. Frames 0-13 will be treated as test data.")
 
     # Setup data
-    datamodule = SingleCu3sDataModule(**data_config)
+    datamodule = Cu3sDataModule(**data_config)
     datamodule.setup(stage=None)
 
     if datamodule.train_ds is not None:
