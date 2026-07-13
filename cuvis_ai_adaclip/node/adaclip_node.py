@@ -130,6 +130,7 @@ class AdaCLIPDetector(Node):
     def __init__(
         self,
         weight_name: str = "pretrained_all",
+        checkpoint_path: str | None = None,
         backbone: str = "ViT-L-14-336",
         prompt_text: str = "",
         image_size: int = 518,
@@ -145,6 +146,7 @@ class AdaCLIPDetector(Node):
     ) -> None:
         super().__init__(
             weight_name=weight_name,
+            checkpoint_path=checkpoint_path,
             backbone=backbone,
             prompt_text=prompt_text,
             image_size=image_size,
@@ -160,6 +162,7 @@ class AdaCLIPDetector(Node):
         )
 
         self.weight_name = weight_name
+        self.checkpoint_path = checkpoint_path
         self.backbone = backbone
         self.prompt_text = prompt_text
         self.image_size = image_size
@@ -221,8 +224,9 @@ class AdaCLIPDetector(Node):
         if self._adaclip_model is not None:
             return
 
-        # Download weights if not cached
-        weight_path = download_weights(self.weight_name)
+        # A local checkpoint_path (shipped / provisioned weights) skips the
+        # download entirely; otherwise fetch into the shared model cache.
+        weight_path = self.checkpoint_path or download_weights(self.weight_name)
 
         # Get current device from this node's tensors
         device = self.current_device

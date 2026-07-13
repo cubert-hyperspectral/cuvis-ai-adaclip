@@ -150,3 +150,21 @@ class TestDownloadWeightsCache:
             result = download_weights("pretrained_all")
             mock_dl.assert_called_once()
             assert result == fake_weight
+
+
+class TestSharedModelCacheRedirect:
+    """get_weights_dir honors the orchestrator's shared model cache env."""
+
+    def test_honors_cuvis_model_cache_dir(self, tmp_path: Path, monkeypatch) -> None:
+        """$CUVIS_MODEL_CACHE_DIR redirects the cache under the shared tree."""
+        monkeypatch.setenv("CUVIS_MODEL_CACHE_DIR", str(tmp_path / "mc"))
+        result = get_weights_dir()
+        assert result == tmp_path / "mc" / "adaclip"
+        assert result.is_dir()
+
+    def test_falls_back_to_user_cache_when_unset(self, tmp_path: Path, monkeypatch) -> None:
+        """Without the env var, the cache stays under the user cache dir."""
+        monkeypatch.delenv("CUVIS_MODEL_CACHE_DIR", raising=False)
+        monkeypatch.setattr("cuvis_ai_adaclip.weights.Path.home", lambda: tmp_path / "home")
+        result = get_weights_dir()
+        assert result == tmp_path / "home" / ".cache" / "cuvis_ai" / "adaclip"
