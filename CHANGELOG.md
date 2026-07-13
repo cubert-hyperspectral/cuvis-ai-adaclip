@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Raised the framework floors to `cuvis-ai-core>=0.11.0` / `cuvis-ai-schemas>=0.8.0`, which fold `TrainerConfig` into a flat `TrainingConfig`. The `examples_cuvis/` scripts construct `TrainingConfig()` with defaults and never reached into the old nested `trainer`, so no example code changed.
 - Added a `no-local-sources` CI workflow that fails if `pyproject.toml` declares a local `[tool.uv.sources]` path entry (a machine-specific path must not ship in a release).
 - Added training-path support in `AdaCLIPDetector` for non-aggregated outputs (`per_layer_scores`, `image_score_2ch`) while preserving aggregated inference behavior.
 - Added a `training_aggregation` constructor parameter (default `True`) to control train-time per-layer vs aggregated behavior.
@@ -10,6 +11,7 @@
 - Fixed upstream `predict()` smoothing to skip Gaussian smoothing when per-layer list outputs are returned (`aggregation=False`).
 - Added a `predict(**_kwargs)` forward-compatibility path in the upstream wrapper.
 - CI: mark the workspace as `git safe.directory` for editable installs.
+- **Honor a shared model cache and add a `checkpoint_path` override.** When `CUVIS_MODEL_CACHE_DIR` is set (injected by the cuvis-ai-core run spawner), the fine-tuned weights (`get_weights_dir()`) and the OpenCLIP backbone (`create_model_and_transforms(cache_dir=…)`) resolve under that shared cache instead of `~/.cache`, so a sandboxed child loads them offline after the first download. The AdaCLIP node also accepts an explicit `checkpoint_path` to load fine-tuned weights from a local file.
 
 ## 0.1.5 - 2026-06-23
 
