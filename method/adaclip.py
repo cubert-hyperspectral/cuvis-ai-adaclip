@@ -218,6 +218,9 @@ class TextEmbebddingLayer(nn.Module):
             "{} without flaw",
             "{} without defect",
             "{} without damage",
+            "clean {}",
+            "{} without foreign object",
+            "{} without contamination",
         ]
         self.prompt_abnormal = [
             "damaged {}",
@@ -225,6 +228,9 @@ class TextEmbebddingLayer(nn.Module):
             "{} with flaw",
             "{} with defect",
             "{} with damage",
+            "dirty {}",
+            "{} with foreign object",
+            "{} with contamination",
         ]
         self.prompt_state = [self.prompt_normal, self.prompt_abnormal]
         self.prompt_templates = [

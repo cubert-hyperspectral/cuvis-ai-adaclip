@@ -5,6 +5,8 @@ Tests pure tensor operations on CPU — no GPU or weight downloads needed.
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
 import pytest
 import torch
 
@@ -144,3 +146,45 @@ class TestPreprocessRgbTorch:
         loss = result.sum()
         loss.backward()
         assert rgb.grad is not None
+
+
+class TestPredictSmoothingGuard:
+    """Tests for smoothing guard in AdaCLIPModel.predict."""
+
+    def test_predict_skips_smoothing_for_per_layer_list_outputs(self) -> None:
+        """When upstream returns list outputs, gaussian smoothing must be skipped."""
+        model = AdaCLIPModel()
+        model._initialized = True
+        model._init_model = lambda: None  # type: ignore[method-assign]
+
+        class FakeClip:
+            def __call__(self, image, cls_name, aggregation=True):  # noqa: ANN001
+                b = image.shape[0]
+                layer = torch.softmax(torch.rand(b, 2, 4, 4), dim=1)
+                return [layer, layer.clone()], torch.softmax(torch.rand(b, 2), dim=1)
+
+        model._clip_model = FakeClip()  # type: ignore[assignment]
+        model._gaussian_smooth_2d = MagicMock(return_value=torch.rand(1, 4, 4))  # type: ignore[method-assign]
+
+        out_map, _ = model.predict(torch.rand(1, 3, 16, 16), sigma=4.0, aggregation=False)
+        assert isinstance(out_map, list)
+        model._gaussian_smooth_2d.assert_not_called()
+
+    def test_predict_applies_smoothing_for_tensor_outputs(self) -> None:
+        """When upstream returns tensor maps, gaussian smoothing should run."""
+        model = AdaCLIPModel()
+        model._initialized = True
+        model._init_model = lambda: None  # type: ignore[method-assign]
+
+        class FakeClip:
+            def __call__(self, image, cls_name, aggregation=True):  # noqa: ANN001
+                b = image.shape[0]
+                return torch.rand(b, 4, 4), torch.rand(b)
+
+        model._clip_model = FakeClip()  # type: ignore[assignment]
+        smooth = MagicMock(side_effect=lambda x, sigma: x)
+        model._gaussian_smooth_2d = smooth  # type: ignore[method-assign]
+
+        out_map, _ = model.predict(torch.rand(1, 3, 16, 16), sigma=4.0, aggregation=True)
+        assert isinstance(out_map, torch.Tensor)
+        smooth.assert_called_once()

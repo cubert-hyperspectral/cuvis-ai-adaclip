@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
+from typing import Any
 
 import torch
 from loguru import logger
@@ -223,6 +224,7 @@ class AdaCLIPModel(nn.Module):
         sigma: float = 4.0,
         aggregation: bool = True,
         enable_gradients: bool = False,
+        **_kwargs: Any,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Run anomaly detection on an image batch.
 
@@ -282,14 +284,14 @@ class AdaCLIPModel(nn.Module):
             f"[cuvis_ai_adaclip] AdaCLIP inference time: {elapsed:.3f}s ({inference_time_ms:.1f}ms), batch_size={image.shape[0]}, per_image={inference_time_ms / image.shape[0]:.1f}ms"
         )
 
-        # Ensure anomaly_score is 1D [B]
+        # Ensure anomaly_score is 1D [B] (when aggregated it's already scalar-per-image)
         if anomaly_score.dim() > 1:
             anomaly_score = anomaly_score.squeeze(-1)
         elif anomaly_score.dim() == 0:
             anomaly_score = anomaly_score.unsqueeze(0)
 
-        # Optional Gaussian smoothing
-        if sigma > 0:
+        # Gaussian smoothing (only when aggregated — list outputs are raw per-layer)
+        if sigma > 0 and isinstance(anomaly_map, torch.Tensor):
             anomaly_map = self._gaussian_smooth_2d(anomaly_map, sigma)
 
         return anomaly_map, anomaly_score
