@@ -9,6 +9,7 @@ Weights are downloaded from Google Drive and cached under
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -43,8 +44,16 @@ ADACLIP_WEIGHTS: dict[str, dict[str, Any]] = {
 
 
 def get_weights_dir() -> Path:
-    """Get or create the weights cache directory."""
-    cache_dir = Path.home() / ".cache" / "cuvis_ai" / "adaclip"
+    """Get or create the weights cache directory.
+
+    Honors ``$CUVIS_MODEL_CACHE_DIR`` (the shared model cache the cuvis-ai
+    orchestrator injects into the child runtime) so weights persist across
+    sandboxed runs instead of the wiped per-run HOME; falls back to
+    ``~/.cache/cuvis_ai`` otherwise.
+    """
+    root = os.environ.get("CUVIS_MODEL_CACHE_DIR")
+    base = Path(root) if root else Path.home() / ".cache" / "cuvis_ai"
+    cache_dir = base / "adaclip"
     cache_dir.mkdir(parents=True, exist_ok=True)
     return cache_dir
 

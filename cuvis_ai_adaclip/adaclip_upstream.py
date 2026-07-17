@@ -7,6 +7,7 @@ this repository (``method/*.py``) instead of any code inside ``cuvis_ai``.
 
 from __future__ import annotations
 
+import os
 import time
 from pathlib import Path
 from typing import Any
@@ -107,6 +108,12 @@ class AdaCLIPModel(nn.Module):
             f"[cuvis_ai_adaclip] Initializing AdaCLIP with {self.backbone} backbone on {device_str}..."
         )
 
+        # Persist the OpenCLIP "openai" backbone under the shared model cache
+        # ($CUVIS_MODEL_CACHE_DIR) when set, so it survives the sandbox's wiped
+        # HOME instead of re-downloading to ~/.cache/clip every run.
+        _model_cache = os.environ.get("CUVIS_MODEL_CACHE_DIR")
+        clip_cache_dir = str(Path(_model_cache) / "clip") if _model_cache else None
+
         # Create CLIP model and transforms using upstream helpers
         # NOTE: create_model_and_transforms creates tensors on the specified device
         clip_model, preprocess_train, preprocess_val = create_model_and_transforms(
@@ -114,6 +121,7 @@ class AdaCLIPModel(nn.Module):
             img_size=self.image_size,
             pretrained="openai",
             device=device_str,
+            cache_dir=clip_cache_dir,
         )
 
         # Match the behavior of the trainer: use fixed-size Resize and CenterCrop
