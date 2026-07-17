@@ -1,8 +1,8 @@
 # Changelog
 
-## [Unreleased]
+## 0.1.6 - 2026-07-17
 
-- Raised the framework floors to `cuvis-ai-core>=0.11.0` / `cuvis-ai-schemas>=0.8.0`, which fold `TrainerConfig` into a flat `TrainingConfig`. The `examples_cuvis/` scripts construct `TrainingConfig()` with defaults and never reached into the old nested `trainer`, so no example code changed.
+- Raised the framework floors to `cuvis-ai-core>=0.11.2` / `cuvis-ai-schemas>=0.8.0`, which fold `TrainerConfig` into a flat `TrainingConfig`. The `examples_cuvis/` scripts construct `TrainingConfig()` with defaults and never reached into the old nested `trainer`, so no example code changed.
 - Added a `no-local-sources` CI workflow that fails if `pyproject.toml` declares a local `[tool.uv.sources]` path entry (a machine-specific path must not ship in a release).
 - Added training-path support in `AdaCLIPDetector` for non-aggregated outputs (`per_layer_scores`, `image_score_2ch`) while preserving aggregated inference behavior.
 - Added a `training_aggregation` constructor parameter (default `True`) to control train-time per-layer vs aggregated behavior.
