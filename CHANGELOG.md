@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.0 - 2026-07-22
+
+- Declared node-catalog metadata on the loss base: `LossNode` (and thus `AdaCLIPFocalDiceLoss`) now sets `category = loss` and tags `[differentiable, torch, training]`, so the loss node self-describes in the cuvis-ai node catalog instead of relying on hand-written manifest metadata.
+
 ## 0.2.0 - 2026-07-17
 
 - Raised the framework floors to `cuvis-ai-core>=0.11.2` / `cuvis-ai-schemas>=0.8.0`, which fold `TrainerConfig` into a flat `TrainingConfig`. The `examples_cuvis/` scripts construct `TrainingConfig()` with defaults and never reached into the old nested `trainer`, so no example code changed.

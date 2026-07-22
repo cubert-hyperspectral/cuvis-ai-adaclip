@@ -6,13 +6,16 @@ from typing import Any
 
 import torch
 from cuvis_ai_core.node import Node
-from cuvis_ai_schemas.enums import ExecutionStage
+from cuvis_ai_schemas.enums import ExecutionStage, NodeCategory, NodeTag
 from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
 
 
 class LossNode(Node):
     """Base class for loss nodes restricted to train/val/test stages."""
+
+    _category = NodeCategory.LOSS
+    _tags = frozenset({NodeTag.DIFFERENTIABLE, NodeTag.TORCH, NodeTag.TRAINING})
 
     def __init__(self, **kwargs) -> None:
         assert "execution_stages" not in kwargs, (
