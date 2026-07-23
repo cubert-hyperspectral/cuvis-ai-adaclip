@@ -63,6 +63,13 @@ examples = [
 dev = [
     "ipython",
     "pytest",
+    # The example import smoke (tests/test_examples_importable.py) imports every
+    # examples/adaclip script, which build MultiCu3sDataModule / Cu3sDataModule from the
+    # dataloader plugin. At runtime the examples resolve it via the cuvis_ai_dataloader.yaml
+    # plugin manifest (provisioning), not a package dependency, so it lives here in dev rather
+    # than examples. Bump to >=0.5.0 once the universe.csv unification releases (the cu3s
+    # examples pass universe_csv, which that release adds; 0.4.0 has the classes).
+    "cuvis-ai-dataloader>=0.4.0",
     "pytest-cov",
     "ruff",
     "interrogate>=1.5.0",

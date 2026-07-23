@@ -18,7 +18,6 @@ from pathlib import Path
 
 import hydra
 import torch
-from cuvis_ai.data import MultiFileCu3sDataModule
 from cuvis_ai.deciders.binary_decider import QuantileBinaryDecider
 from cuvis_ai.node.channel_mixer import ConcreteChannelMixer
 from cuvis_ai.node.data import LentilsAnomalyDataNode
@@ -27,6 +26,7 @@ from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.normalization import MinMaxNormalizer
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_core.training import GradientTrainer, StatisticalTrainer
+from cuvis_ai_dataloader.data import MultiCu3sDataModule
 from cuvis_ai_schemas.pipeline import PipelineMetadata
 from cuvis_ai_schemas.training import (
     CallbacksConfig,
@@ -67,8 +67,8 @@ def main(cfg: DictConfig) -> None:
     output_dir = output_dir.parent / f"{output_dir.name}_concrete"
 
     # Data
-    datamodule = MultiFileCu3sDataModule(
-        splits_csv=cfg.data.splits_csv,
+    datamodule = MultiCu3sDataModule(
+        universe_csv=cfg.data.universe_csv,
         batch_size=cfg.data.batch_size,
         processing_mode=cfg.data.processing_mode,
         num_workers=cfg.data.get("num_workers", 0),

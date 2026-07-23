@@ -12,9 +12,9 @@ output_dir: ./outputs/${name}
 # running min/max (use_running_stats=True). Set to null for full-data behavior.
 minmax_init_frames: 30
 
-# Multi-file data config (not using SingleCu3sDataModule)
+# Multi-file cu3s data (cu3s_multi over a universe.csv)
 data:
-  splits_csv: lentils_splits.csv
+  universe_csv: lentils_universe.csv
   batch_size: 4
   processing_mode: Reflectance
 
