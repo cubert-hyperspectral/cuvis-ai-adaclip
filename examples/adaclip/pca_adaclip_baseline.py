@@ -26,9 +26,9 @@ from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.normalization import MinMaxNormalizer
 from cuvis_ai.node.pipeline_visualization import PipelineComparisonVisualizer
-from cuvis_ai_core.data.datasets import SingleCu3sDataModule
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_core.training import StatisticalTrainer
+from cuvis_ai_dataloader.data import Cu3sDataModule
 from cuvis_ai_schemas.pipeline import PipelineMetadata
 from cuvis_ai_schemas.training import (
     TrainingConfig,
@@ -53,7 +53,7 @@ def main(cfg: DictConfig) -> None:
     output_dir = Path(cfg.output_dir)
 
     # Stage 1: Setup datamodule
-    datamodule = SingleCu3sDataModule(**cfg.data)
+    datamodule = Cu3sDataModule(**cfg.data)
     datamodule.setup(stage="fit")
 
     # Access node parameters from cfg.pipeline if available, otherwise from cfg

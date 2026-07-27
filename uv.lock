@@ -538,6 +538,7 @@ dependencies = [
 [package.optional-dependencies]
 dev = [
     { name = "bandit" },
+    { name = "cuvis-ai-dataloader" },
     { name = "cyclonedx-bom" },
     { name = "detect-secrets" },
     { name = "interrogate" },
@@ -560,6 +561,7 @@ requires-dist = [
     { name = "click" },
     { name = "cuvis-ai", marker = "extra == 'examples'", specifier = ">=0.9.0" },
     { name = "cuvis-ai-core", specifier = ">=0.11.2" },
+    { name = "cuvis-ai-dataloader", marker = "extra == 'dev'", specifier = ">=0.5.0" },
     { name = "cuvis-ai-schemas", specifier = ">=0.8.0" },
     { name = "cyclonedx-bom", marker = "extra == 'dev'", specifier = ">=4.0.0" },
     { name = "detect-secrets", marker = "extra == 'dev'", specifier = ">=1.4.0" },
@@ -628,6 +630,25 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/9b/6d/c3c8c437c962ce6600a002232c1a11476c7ba2094dad4958435d9dc9ba7b/cuvis_ai_core-0.11.2.tar.gz", hash = "sha256:2f04515845649a12f1c2680856c0bf9942cf0e3fb9e6cce6a987a7400cc50e53", size = 710108, upload-time = "2026-07-17T10:18:26.877Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/48/a0/d927329e7cc8948582d67d24c80cb85bf8dbe069163bf4dcafed41e0adba/cuvis_ai_core-0.11.2-py3-none-any.whl", hash = "sha256:4c33e3b7cc938ba8711b2e1829a54199104d4ff7598ab0f04c9f2a40028464bb", size = 230023, upload-time = "2026-07-17T10:18:25.404Z" },
+]
+
+[[package]]
+name = "cuvis-ai-dataloader"
+version = "0.5.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cuvis-ai-core" },
+    { name = "cuvis-ai-schemas" },
+    { name = "loguru" },
+    { name = "numpy" },
+    { name = "pillow" },
+    { name = "pytorch-lightning" },
+    { name = "torch" },
+    { name = "torchvision" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ce/1a/0d88753014febd43d4a18df984472f08e367002d8c440a7cb0676899893b/cuvis_ai_dataloader-0.5.0.tar.gz", hash = "sha256:8a61a562a3cc18a7eb58c9013f853a18a7bef466fcd850e1953513b7a455d14b", size = 179116, upload-time = "2026-07-27T11:45:50.109Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/09/bd/abe3bbb8c7b27b0f3e10d04f0d1b8bccf871270fb602997944f22fd95f34/cuvis_ai_dataloader-0.5.0-py3-none-any.whl", hash = "sha256:a1700fa9a29c06b0e2798ff9b977b14057f14d8bef1d8cfb943118d8d2a43807", size = 56376, upload-time = "2026-07-27T11:45:48.816Z" },
 ]
 
 [[package]]

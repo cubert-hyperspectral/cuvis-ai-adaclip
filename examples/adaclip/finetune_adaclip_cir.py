@@ -6,7 +6,7 @@ Usage:
     cd /home/dev/anish/cuvis-ai-adaclip
     uv run python examples/adaclip/finetune_adaclip_cir.py
     uv run python examples/adaclip/finetune_adaclip_cir.py \\
-        data.splits_csv=lentils_splits.csv
+        data.universe_csv=lentils_universe.csv
 """
 
 from __future__ import annotations

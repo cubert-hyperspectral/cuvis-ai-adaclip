@@ -20,7 +20,7 @@ minmax_init_frames: 20
 
 # Multi-file lentils dataset (all days)
 data:
-  splits_csv: lentils_splits.csv
+  universe_csv: lentils_universe.csv
   batch_size: 1
   processing_mode: Reflectance
   num_workers: 4
