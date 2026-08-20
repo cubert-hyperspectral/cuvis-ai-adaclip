@@ -6,6 +6,10 @@
 - Renamed the `splits_csv` trainrun key to `universe_csv` in the lentils cu3s configs (`finetune_adaclip`, `lentils_concrete_adaclip`, `lentils_drcnn_adaclip`), matching the dataloader's unified `universe.csv` vocabulary.
 - Added `tests/test_examples_importable.py`, which imports every `examples/adaclip/*.py` module in the existing test job so a dead import fails CI. Added `cuvis-ai-dataloader>=0.4.0` to the `dev` extra for it; runtime still provisions the plugin via `configs/plugins/cuvis_ai_dataloader.yaml` rather than a package dependency. Bump the floor to `>=0.5.0` once the universe.csv unification releases, since the cu3s examples pass `universe_csv`.
 
+## 0.3.1 - 2026-08-20
+
+- Removed the dead `[tool.uv.sources]` / `[[tool.uv.index]]` torch cu128 configuration: torch is not a direct dependency of this package and the committed lock resolves it from PyPI, so the tables had no effect anywhere (uv honours them only at the resolution root). Composed child environments receive the host-mirrored torch build from `cuvis-ai-core>=0.12.1`.
+
 ## 0.3.0 - 2026-07-22
 
 - Declared node-catalog metadata on the loss base: `LossNode` (and thus `AdaCLIPFocalDiceLoss`) now sets `category = loss` and tags `[differentiable, torch, training]`, so the loss node self-describes in the cuvis-ai node catalog instead of relying on hand-written manifest metadata.
