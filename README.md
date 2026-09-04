@@ -218,20 +218,32 @@ A cuvis.ai `Node` for zero-shot anomaly detection on RGB images.
 
 ## Pre-trained Weights
 
-Weights are automatically downloaded and cached on first use:
+The three checkpoints released by the AdaCLIP authors are mirrored unchanged at
+[`cubert-gmbh/adaclip`](https://huggingface.co/cubert-gmbh/adaclip) and served through
+cuvis-ai-core's weight registry. `download_weights` returns the cached file and downloads it
+when online; the sandboxed runtime is offline, so provision once with `download-model`:
+
+```bash
+uv run download-model download adaclip_all
+uv run download-model download clip_vit_l_14_336   # the CLIP ViT-L/14@336px backbone
+```
 
 ```python
 from cuvis_ai_adaclip import list_available_weights, download_weights
 
-print(list_available_weights())  # ['pretrained_all', 'pretrained_mvtec_clinicdb', ...]
+print(list_available_weights())  # ['pretrained_mvtec_colondb', 'pretrained_visa_clinicdb', 'pretrained_all']
 download_weights("pretrained_all")
 ```
 
-| Weight Name | Description | Google Drive |
-|------------|-------------|--------------|
-| `pretrained_all` | Trained on all datasets | [Link](https://drive.google.com/file/d/1Cgkfx3GAaSYnXPLolx-P7pFqYV0IVzZF/view) |
-| `pretrained_mvtec_clinicdb` | MVTec AD & ClinicDB | [Link](https://drive.google.com/file/d/1xVXANHGuJBRx59rqPRir7iqbkYzq45W0/view) |
-| `pretrained_visa_colondb` | VisA & ColonDB | [Link](https://drive.google.com/file/d/1QGmPB0ByPZQ7FucvGODMSz7r5Ke5wx9W/view) |
+| Weight Name | Registry name | Description |
+|------------|---------------|-------------|
+| `pretrained_all` | `adaclip_all` | Trained on all auxiliary datasets |
+| `pretrained_mvtec_colondb` | `adaclip_mvtec_colondb` | Trained on MVTec AD & ColonDB (the upstream README's weights table labels this file "MVTec AD & ClinicDB"; the file name and the README's Train section say ColonDB) |
+| `pretrained_visa_clinicdb` | `adaclip_visa_clinicdb` | Trained on VisA & ClinicDB (upstream table label: "VisA & ColonDB") |
+
+The CLIP ViT-L/14@336px backbone comes from the [`cubert-gmbh/clip`](https://huggingface.co/cubert-gmbh/clip)
+mirror and is placed where the vendored OpenCLIP loader expects it (`$CUVIS_MODEL_CACHE_DIR/clip`,
+else `~/.cache/clip`). Other backbones are not mirrored and still download from OpenAI.
 
 ## Development
 

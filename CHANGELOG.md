@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.0 - 2026-09-04
+
+- **Weights come from the `cubert-gmbh` Hugging Face mirrors through cuvis-ai-core's weight registry.** `download_weights` resolves the AdaCLIP heads with `ModelWeights.resolve` (`cubert-gmbh/adaclip`, the upstream Drive files unchanged) and the CLIP ViT-L/14@336px backbone is materialized from `cubert-gmbh/clip` into the directory the vendored OpenCLIP loader reads (`$CUVIS_MODEL_CACHE_DIR/clip`, else `~/.cache/clip`), so no Google Drive, `gdown` or OpenAI CDN access is needed and the offline child loads from the provisioned cache (`download-model download adaclip_all` and `download-model download clip_vit_l_14_336`). `gdown` is no longer a dependency, `get_local_weight_path` reports the cached mirror file, and the weight keys are unchanged (`pretrained_all`, `pretrained_mvtec_colondb`, `pretrained_visa_clinicdb`; the upstream README table labels the two dataset heads the other way round, while the file names and the README's Train section agree with the keys). Requires cuvis-ai-core 0.16.0. CLIP backbones other than ViT-L-14-336 still download from OpenAI.
+
 ## 0.3.2 - 2026-09-04
 
 - `LossNode` declares its execution stages on the class (`EXECUTION_STAGES = {TRAIN, VAL, TEST}`, cuvis-ai-core 0.14.1) instead of passing `execution_stages=` to the constructor; the `execution_stages` guard assert is gone. Floors `cuvis-ai-core>=0.14.1`, which moves the locked `cuvis-ai-schemas` to 0.10.0.

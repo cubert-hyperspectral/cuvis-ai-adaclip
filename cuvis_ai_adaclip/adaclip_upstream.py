@@ -27,6 +27,24 @@ from method.custom_clip import (
 
 from .weights import download_weights, list_available_weights
 
+# OpenCLIP backbone name -> cuvis-ai-core registry name. Only mirrored backbones;
+# any other name keeps the vendored loader's download from OpenAI.
+_MIRRORED_CLIP_BACKBONES: dict[str, str] = {"ViT-L-14-336": "clip_vit_l_14_336"}
+
+
+def _seed_clip_backbone(backbone: str, cache_dir: Path) -> None:
+    """Materialize a mirrored CLIP checkpoint into ``cache_dir`` before OpenCLIP looks for it."""
+    registry_name = _MIRRORED_CLIP_BACKBONES.get(backbone)
+    if registry_name is None:
+        logger.warning(
+            f"[cuvis_ai_adaclip] CLIP backbone {backbone!r} has no cubert-gmbh mirror; "
+            "the vendored loader fetches it from OpenAI"
+        )
+        return
+    from cuvis_ai_core.data.model_weights import ModelWeights
+
+    ModelWeights.materialize(registry_name, cache_dir)
+
 
 class AdaCLIPModel(nn.Module):
     """High-level AdaCLIP model for zero-shot anomaly detection (plugin version).
@@ -108,11 +126,16 @@ class AdaCLIPModel(nn.Module):
             f"[cuvis_ai_adaclip] Initializing AdaCLIP with {self.backbone} backbone on {device_str}..."
         )
 
-        # Persist the OpenCLIP "openai" backbone under the shared model cache
-        # ($CUVIS_MODEL_CACHE_DIR) when set, so it survives the sandbox's wiped
-        # HOME instead of re-downloading to ~/.cache/clip every run.
+        # The CLIP backbone comes from cuvis-ai-core's weight registry (the
+        # cubert-gmbh/clip mirror) and is placed where the vendored OpenCLIP loader
+        # looks for it: the shared model cache ($CUVIS_MODEL_CACHE_DIR/clip, injected
+        # by the orchestrator) or OpenCLIP's default ~/.cache/clip. The loader's own
+        # sha256 check accepts the seeded file, so it never contacts the OpenAI CDN.
         _model_cache = os.environ.get("CUVIS_MODEL_CACHE_DIR")
-        clip_cache_dir = str(Path(_model_cache) / "clip") if _model_cache else None
+        clip_cache_dir = (
+            Path(_model_cache) / "clip" if _model_cache else Path.home() / ".cache" / "clip"
+        )
+        _seed_clip_backbone(self.backbone, clip_cache_dir)
 
         # Create CLIP model and transforms using upstream helpers
         # NOTE: create_model_and_transforms creates tensors on the specified device
@@ -121,7 +144,7 @@ class AdaCLIPModel(nn.Module):
             img_size=self.image_size,
             pretrained="openai",
             device=device_str,
-            cache_dir=clip_cache_dir,
+            cache_dir=str(clip_cache_dir),
         )
 
         # Match the behavior of the trainer: use fixed-size Resize and CenterCrop
