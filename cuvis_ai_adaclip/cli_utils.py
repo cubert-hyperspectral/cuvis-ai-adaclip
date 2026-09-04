@@ -332,14 +332,13 @@ class AdaCLIPCLI:
             ),
             "batch_size": kwargs.get("batch_size", 4),
             "processing_mode": kwargs.get("processing_mode", "Reflectance"),
-            # leakage_check off: these examples intentionally overlap splits (the
-            # anomaly-detection pattern fits on a subset and scores all frames), which
-            # the old SingleCu3sDataModule did not police.
+            # No split constraints: these examples intentionally overlap splits (the
+            # anomaly-detection pattern fits on a subset and scores all frames). The
+            # empty ``constraints`` default declares no checks.
             "splits": DataSplitConfig(
                 train=_sel(train_ids),
                 val=_sel(val_ids),
                 test=_sel(test_ids),
-                leakage_check="off",
             ),
         }
 

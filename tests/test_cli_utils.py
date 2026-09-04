@@ -16,7 +16,7 @@ def test_parse_data_config_defaults() -> None:
 
     splits = cfg["splits"]
     assert isinstance(splits, DataSplitConfig)
-    assert splits.leakage_check == "off"
+    assert splits.constraints == []
     # default train/val/test ids parsed from the comma strings
     assert [s.ids for s in splits.train] == [[0, 2]]
     assert [s.ids for s in splits.val] == [[2, 4]]
