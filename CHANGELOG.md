@@ -1,7 +1,9 @@
 # Changelog
 
-## [Unreleased]
+## 0.3.2 - 2026-09-04
 
+- `LossNode` declares its execution stages on the class (`EXECUTION_STAGES = {TRAIN, VAL, TEST}`, cuvis-ai-core 0.14.1) instead of passing `execution_stages=` to the constructor; the `execution_stages` guard assert is gone. Floors `cuvis-ai-core>=0.14.1`, which moves the locked `cuvis-ai-schemas` to 0.10.0.
+- Dropped `leakage_check="off"` from the CLI split config (`parse_data_config`): `cuvis-ai-schemas` 0.9 replaced the field with a `constraints` list whose empty default declares no checks, so the intentional split overlap of the examples is unchanged and the config loads again. Floors `cuvis-ai-schemas>=0.10.0` to match.
 - Resurrected the `examples/adaclip/` scripts against the current stack and added an import smoke test so they cannot rot silently again. They imported several removed symbols: `cuvis_ai.data.MultiFileCu3sDataModule` (now `cuvis_ai_dataloader.data.MultiCu3sDataModule`), `cuvis_ai_core.data.datasets.SingleCu3sDataModule` (now `cuvis_ai_dataloader.data.Cu3sDataModule`), and `cuvis_ai.training.MultiFileTrainRunConfig` (removed; the scripts already persist the pipeline via `save_to_file`, so the extra trainrun-config save was dropped). The multi-file cu3s scripts now pass `universe_csv` (was `splits_csv`) and no longer pass `pin_memory` / `persistent_workers` / `worker_multiprocessing_context`, which `MultiCu3sDataModule` rejects.
 - Renamed the `splits_csv` trainrun key to `universe_csv` in the lentils cu3s configs (`finetune_adaclip`, `lentils_concrete_adaclip`, `lentils_drcnn_adaclip`), matching the dataloader's unified `universe.csv` vocabulary.
 - Added `tests/test_examples_importable.py`, which imports every `examples/adaclip/*.py` module in the existing test job so a dead import fails CI. Added `cuvis-ai-dataloader>=0.4.0` to the `dev` extra for it; runtime still provisions the plugin via `configs/plugins/cuvis_ai_dataloader.yaml` rather than a package dependency. Bump the floor to `>=0.5.0` once the universe.csv unification releases, since the cu3s examples pass `universe_csv`.

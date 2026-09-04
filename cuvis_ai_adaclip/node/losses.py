@@ -16,19 +16,11 @@ class LossNode(Node):
 
     _category = NodeCategory.LOSS
     _tags = frozenset({NodeTag.DIFFERENTIABLE, NodeTag.TORCH, NodeTag.TRAINING})
+    # Declared on the class (cuvis-ai-core 0.14.1): a loss runs in train/val/test, never inference.
+    EXECUTION_STAGES = frozenset({ExecutionStage.TRAIN, ExecutionStage.VAL, ExecutionStage.TEST})
 
     def __init__(self, **kwargs) -> None:
-        assert "execution_stages" not in kwargs, (
-            "Loss nodes can only execute in train, val, and test stages."
-        )
-        super().__init__(
-            execution_stages={
-                ExecutionStage.TRAIN,
-                ExecutionStage.VAL,
-                ExecutionStage.TEST,
-            },
-            **kwargs,
-        )
+        super().__init__(**kwargs)
 
 
 class AdaCLIPFocalDiceLoss(LossNode):
