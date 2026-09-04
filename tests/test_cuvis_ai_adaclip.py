@@ -56,10 +56,10 @@ class TestWeightManager:
     def test_adaclip_weights_registry(self) -> None:
         """Test that weight registry has correct structure."""
         for _name, cfg in ADACLIP_WEIGHTS.items():
-            assert "gdrive_id" in cfg
+            assert "registry_name" in cfg
             assert "description" in cfg
             assert "filename" in cfg
-            assert cfg["gdrive_id"]  # Non-empty
+            assert cfg["registry_name"].startswith("adaclip_")
             assert cfg["filename"].endswith(".pth")
 
     def test_download_weights_invalid_name(self) -> None:

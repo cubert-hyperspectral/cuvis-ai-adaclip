@@ -40,6 +40,13 @@ def _patch_clip_builders(monkeypatch, captured: dict) -> None:
     )
     # AdaCLIP is wrapped as a submodule; a real nn.Module keeps ._clip_model.to() valid.
     monkeypatch.setattr(adaclip_upstream, "AdaCLIP", lambda **kwargs: nn.Identity())
+    from cuvis_ai_core.data.model_weights import ModelWeights
+
+    def fake_materialize(cls, name, dest_dir, **kwargs):
+        captured["materialize"] = (name, Path(dest_dir))
+        return Path(dest_dir) / "ViT-L-14-336px.pt"
+
+    monkeypatch.setattr(ModelWeights, "materialize", classmethod(fake_materialize))
 
 
 class TestClipBackboneCacheDir:
@@ -55,9 +62,10 @@ class TestClipBackboneCacheDir:
         model._init_model()
 
         assert captured["cache_dir"] == str(tmp_path / "mc" / "clip")
+        assert captured["materialize"] == ("clip_vit_l_14_336", tmp_path / "mc" / "clip")
 
-    def test_cache_dir_none_when_env_unset(self, monkeypatch) -> None:
-        """Without the env var the CLIP backbone falls back to OpenCLIP's default cache."""
+    def test_defaults_to_the_user_clip_cache_when_env_unset(self, monkeypatch) -> None:
+        """Without the env var the mirror file is seeded into OpenCLIP's ~/.cache/clip."""
         captured: dict = {}
         monkeypatch.delenv("CUVIS_MODEL_CACHE_DIR", raising=False)
         _patch_clip_builders(monkeypatch, captured)
@@ -65,7 +73,9 @@ class TestClipBackboneCacheDir:
         model = AdaCLIPModel(backbone="ViT-L-14-336", image_size=32, device="cpu")
         model._init_model()
 
-        assert captured["cache_dir"] is None
+        expected = Path.home() / ".cache" / "clip"
+        assert captured["cache_dir"] == str(expected)
+        assert captured["materialize"] == ("clip_vit_l_14_336", expected)
 
 
 class _StubAdaCLIPModel(nn.Module):
