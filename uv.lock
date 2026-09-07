@@ -546,9 +546,9 @@ requires-dist = [
     { name = "bandit", extras = ["toml"], marker = "extra == 'dev'", specifier = ">=1.7.0" },
     { name = "click" },
     { name = "cuvis-ai", marker = "extra == 'examples'", specifier = ">=0.9.0" },
-    { name = "cuvis-ai-core", specifier = ">=0.16.0" },
+    { name = "cuvis-ai-core", specifier = ">=0.17.0" },
     { name = "cuvis-ai-dataloader", marker = "extra == 'dev'", specifier = ">=0.5.0" },
-    { name = "cuvis-ai-schemas", specifier = ">=0.10.0" },
+    { name = "cuvis-ai-schemas", specifier = ">=0.12.0" },
     { name = "cyclonedx-bom", marker = "extra == 'dev'", specifier = ">=4.0.0" },
     { name = "detect-secrets", marker = "extra == 'dev'", specifier = ">=1.4.0" },
     { name = "ftfy" },
@@ -579,7 +579,7 @@ provides-extras = ["examples", "dev"]
 
 [[package]]
 name = "cuvis-ai-core"
-version = "0.16.0"
+version = "0.17.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -613,9 +613,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f2/e9/0a14b828a226c0759a873748717425d09a1ab6268b218dac5d4b33bd0dc9/cuvis_ai_core-0.16.0.tar.gz", hash = "sha256:471e6250b77a904a00e77d139debd7e8fb5713f35167aa2985e652ef84e59d89", size = 819713, upload-time = "2026-09-04T12:53:10.468Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/94/c3/47700359872818c35b452ba135e30dd6fec3592ba2b51fff85c0ae05c262/cuvis_ai_core-0.17.0.tar.gz", hash = "sha256:092d029be8c3c564fff9f2ce61de586b96a5c47a3a62b55f2bfdef7b765fd275", size = 902694, upload-time = "2026-09-07T11:55:57.346Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/14/22/662ba831346bb048c6a27b83c866ba33cc26f9d8f6c03f54468b2221d1f2/cuvis_ai_core-0.16.0-py3-none-any.whl", hash = "sha256:45683abbfb8660a518ead721f3dcac208cb7c34b3f0763923d3b569a88e2fe33", size = 266804, upload-time = "2026-09-04T12:53:08.95Z" },
+    { url = "https://files.pythonhosted.org/packages/65/7d/1d3abf58f957e3fd5a84caea62d9ed5489253d57432150e760fa95a5d901/cuvis_ai_core-0.17.0-py3-none-any.whl", hash = "sha256:7193fa1d2b423f3d04e4b2d2f23fc7f3570d84e4609f135fe598a02c552b238d", size = 317828, upload-time = "2026-09-07T11:55:55.339Z" },
 ]
 
 [[package]]
@@ -639,15 +639,15 @@ wheels = [
 
 [[package]]
 name = "cuvis-ai-schemas"
-version = "0.10.0"
+version = "0.12.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b9/9b/5444e9acf4b3888cee0942cc479e4fa0280838e18ef4e86e021337e2a026/cuvis_ai_schemas-0.10.0.tar.gz", hash = "sha256:80e653376de82bc0a4c82adcd48918d943ac7ed649a912e416e1b9da082a6179", size = 253327, upload-time = "2026-08-25T07:10:38.72Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7c/53/f3f5b322ef73150aabe78eafc6eaa019c5163116151b841b116b40196308/cuvis_ai_schemas-0.12.0.tar.gz", hash = "sha256:b64951217e70214f32acf78fb11c9129a722cac6d4ed71efcabbc8b46242e9ff", size = 263678, upload-time = "2026-09-07T11:13:40.286Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/01/2a/2d23af455b178bd032a899b7e2f6bf8e25ff4d4d213e430b29abe06040d4/cuvis_ai_schemas-0.10.0-py3-none-any.whl", hash = "sha256:2da76b280c7b6c89a6331f864da40a3081daeb96a0b64337309d0d8844af1cef", size = 76889, upload-time = "2026-08-25T07:10:37.418Z" },
+    { url = "https://files.pythonhosted.org/packages/d4/a2/7f6ff12994a617d684b0bf2dd7ee021d3d24618c0f4ff8000bf1ec2ae648/cuvis_ai_schemas-0.12.0-py3-none-any.whl", hash = "sha256:32692c41272e95ee8b64acb2b0fe828931b951cb8668ab84b30f93870e61c250", size = 81724, upload-time = "2026-09-07T11:13:38.752Z" },
 ]
 
 [package.optional-dependencies]

@@ -1,17 +1,23 @@
-"""Pretrained AdaCLIP heads, resolved through cuvis-ai-core's weight registry.
+"""Pretrained AdaCLIP heads and the CLIP backbone, declared for cuvis-ai-core's registry.
 
-The three checkpoints the AdaCLIP authors released on Google Drive are mirrored
-unchanged under the ``cubert-gmbh`` Hugging Face organisation
-(``cubert-gmbh/adaclip``) and registered in ``cuvis_ai_core.data.model_weights``.
-``download_weights`` returns the cached file, downloading it when online, so no
-Google Drive access is involved any more; in the sandboxed runtime (offline) a
-missing weight raises core's ``ModelWeightsMissingError`` naming the provisioning
-command (``download-model download adaclip_all``).
+``WEIGHTS`` is the plugin's weight declaration: the three prompt heads the AdaCLIP
+authors released (mirrored unchanged under ``cubert-gmbh/adaclip``) and the OpenAI
+CLIP ViT-L/14 at 336 px backbone every head was trained on (``cubert-gmbh/clip``).
+``cuvis_ai_adaclip/__init__`` registers the tuple with ``ModelWeights`` at import, and
+cuvis-ai's ``emit_metadata`` projects it into the plugin manifest's ``weights:`` block,
+so CuvisNEXT and the installer know what to provision without importing the plugin.
+The pins come from ``tools/mirror_weights.py`` in cuvis-ai-core.
 
-The weight keys are the upstream Drive filenames. The upstream README's weights
-table labels ``pretrained_mvtec_colondb.pth`` as "MVTec AD & ClinicDB" and
-``pretrained_visa_clinicdb.pth`` as "VisA & ColonDB", while its Train section
-pairs MVTec AD with ColonDB and VisA with ClinicDB, matching the file names.
+``ADACLIP_WEIGHTS`` (the node's ``weight_name`` vocabulary, keyed by the upstream Drive
+filenames) is derived from ``WEIGHTS``: every head row's alias is its ``weight_name``.
+``download_weights`` returns the cached file, downloading it when online; in the
+sandboxed runtime (offline) a missing weight raises core's ``ModelWeightsMissingError``
+naming the provisioning command (``download-model download adaclip_all``).
+
+The upstream README's weights table labels ``pretrained_mvtec_colondb.pth`` as
+"MVTec AD & ClinicDB" and ``pretrained_visa_clinicdb.pth`` as "VisA & ColonDB", while
+its Train section pairs MVTec AD with ColonDB and VisA with ClinicDB, matching the
+file names.
 """
 
 from __future__ import annotations
@@ -20,25 +26,121 @@ import os
 from pathlib import Path
 from typing import Any
 
+from cuvis_ai_schemas.plugin import PluginWeightEntry
 from loguru import logger
 
+PLUGIN_NAME = "adaclip"
+"""The manifest name of this plugin (what pipelines list under ``plugins:``)."""
+
+CLIP_BACKBONE_NAME = "ViT-L-14-336"
+"""The OpenCLIP model name of the backbone every shipped AdaCLIP head was trained on."""
+
+_ADACLIP_REPO = "cubert-gmbh/adaclip"
+_ADACLIP_REVISION = "16153b4ba74c2fe54a99679fc2e1b1e29993dc3f"
+_HEAD_SIZE_BYTES = 42_673_907
+# The upstream repos publish their code under MIT and state no licence for the weights.
+_WEIGHTS_LICENSE = "unspecified (code: MIT)"
+
+
+def _head(
+    name: str,
+    weight_name: str,
+    display_name: str,
+    summary: str,
+    *,
+    sha256: str,
+    default: bool = False,
+    description: str,
+) -> PluginWeightEntry:
+    return PluginWeightEntry(
+        name=name,
+        display_name=display_name,
+        summary=summary,
+        used_for=["Anomaly detection", "Zero-shot"],
+        repo_id=_ADACLIP_REPO,
+        filename=f"{weight_name}.pth",
+        revision=_ADACLIP_REVISION,
+        sha256=sha256,
+        size_bytes=_HEAD_SIZE_BYTES,
+        license=_WEIGHTS_LICENSE,
+        license_file=None,
+        aliases=[weight_name],
+        selected_by="weight_name",
+        default=default,
+        explicit_path_hparams=["checkpoint_path"],
+        description=description,
+    )
+
+
+CLIP_BACKBONE = PluginWeightEntry(
+    name="clip_vit_l_14_336",
+    display_name="CLIP ViT-L/14 at 336 px",
+    summary="Backbone every AdaCLIP head needs",
+    used_for=["Backbone", "Anomaly detection"],
+    repo_id="cubert-gmbh/clip",
+    filename="ViT-L-14-336px.pt",
+    revision="a223b3db0b7bd1b55cf8f6421629b30b46c995de",
+    sha256="3035c92b350959924f9f00213499208652fc7ea050643e8b385c2dac08641f02",
+    size_bytes=934_088_680,
+    license=_WEIGHTS_LICENSE,
+    license_file=None,
+    description=(
+        "OpenAI CLIP ViT-L/14 at 336 px, the frozen backbone every AdaCLIP head runs on; "
+        "materialized into the OpenCLIP cache the vendored loader reads (mirror of the "
+        "OpenAI release, unmodified)."
+    ),
+)
+"""The one CLIP backbone the plugin can provision; other backbones download from OpenAI."""
+
+WEIGHTS: tuple[PluginWeightEntry, ...] = (
+    _head(
+        "adaclip_mvtec_colondb",
+        "pretrained_mvtec_colondb",
+        "AdaCLIP head (MVTec AD, ColonDB)",
+        "Zero-shot anomaly detection, MVTec AD and ColonDB head",
+        sha256="be51a42c052bd4cf060e54f503a1f5d0b2a3b899bc8dc2e243042f18b215427e",
+        description=(
+            "AdaCLIP prompt head trained on MVTec AD and ColonDB (the upstream weights "
+            "table labels it MVTec AD & ClinicDB); weight_name: pretrained_mvtec_colondb."
+        ),
+    ),
+    _head(
+        "adaclip_visa_clinicdb",
+        "pretrained_visa_clinicdb",
+        "AdaCLIP head (VisA, ClinicDB)",
+        "Zero-shot anomaly detection, VisA and ClinicDB head",
+        sha256="3deabbbaf1e412cfdfcb42923a500b986f4b9ee96ccbc7a735d89dbc87df44c8",
+        description=(
+            "AdaCLIP prompt head trained on VisA and ClinicDB (the upstream weights table "
+            "labels it VisA & ColonDB); weight_name: pretrained_visa_clinicdb."
+        ),
+    ),
+    _head(
+        "adaclip_all",
+        "pretrained_all",
+        "AdaCLIP head (all datasets)",
+        "Zero-shot anomaly detection; the default AdaCLIP head",
+        sha256="33e8d3db1cb4aab030866b8b70a46e10aa27ebf2c23b5463cb07f2574addd98c",
+        default=True,
+        description=(
+            "AdaCLIP prompt head trained on all upstream datasets (MVTec AD, VisA, ColonDB, "
+            "ClinicDB and more); the head an AdaCLIPDetector loads when weight_name is not set."
+        ),
+    ),
+    CLIP_BACKBONE,
+)
+"""Every weight the adaclip nodes load: the three heads (picked by ``weight_name``) and the backbone."""
+
 ADACLIP_WEIGHTS: dict[str, dict[str, Any]] = {
-    "pretrained_mvtec_colondb": {
-        "registry_name": "adaclip_mvtec_colondb",
-        "description": "Trained on MVTec AD & ColonDB (upstream table label: MVTec AD & ClinicDB)",
-        "filename": "pretrained_mvtec_colondb.pth",
-    },
-    "pretrained_visa_clinicdb": {
-        "registry_name": "adaclip_visa_clinicdb",
-        "description": "Trained on VisA & ClinicDB (upstream table label: VisA & ColonDB)",
-        "filename": "pretrained_visa_clinicdb.pth",
-    },
-    "pretrained_all": {
-        "registry_name": "adaclip_all",
-        "description": "Trained on all datasets (MVTec, VisA, ColonDB, ClinicDB, etc.)",
-        "filename": "pretrained_all.pth",
-    },
+    entry.aliases[0]: {
+        "registry_name": entry.name,
+        "description": entry.description,
+        "filename": entry.filename,
+    }
+    for entry in WEIGHTS
+    if entry.selected_by == "weight_name"
 }
+"""``weight_name`` -> registry name, description and upstream filename (derived from ``WEIGHTS``)."""
 
 
 def get_weights_dir() -> Path:
