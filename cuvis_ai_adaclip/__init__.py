@@ -6,7 +6,11 @@ This package lives inside the forked AdaCLIP repository and provides:
   (see :mod:`cuvis_ai_adaclip.adaclip_upstream`).
 - A cuvis.ai-compatible Node, :class:`cuvis_ai_adaclip.node.AdaCLIPDetector`,
   which plugs into the cuvis.ai canvas/Node system.
+- The plugin's weight declarations (see :mod:`cuvis_ai_adaclip.weights`), registered
+  with cuvis-ai-core's model-weight registry when the package is imported.
 """
+
+from cuvis_ai_core.data.model_weights import ModelWeights
 
 from .adaclip_upstream import (  # noqa: F401
     OPENAI_DATASET_MEAN,
@@ -17,7 +21,11 @@ from .adaclip_upstream import (  # noqa: F401
     list_available_weights,
 )
 from .node import AdaCLIPDetector, AdaCLIPFocalDiceLoss, LossNode  # noqa: F401
-from .weights import ADACLIP_WEIGHTS, get_weights_dir  # noqa: F401
+from .weights import ADACLIP_WEIGHTS, PLUGIN_NAME, WEIGHTS, get_weights_dir  # noqa: F401
+
+# Declaring the weights here (idempotent) is what lets ``download_weights`` resolve the
+# heads, and ``download-model`` in the same environment list them, without a manifest.
+ModelWeights.register(PLUGIN_NAME, WEIGHTS)
 
 
 def register_all_nodes() -> int:
@@ -39,6 +47,8 @@ __all__ = [
     "AdaCLIPDetector",
     "AdaCLIPFocalDiceLoss",
     "AdaCLIPModel",
+    "PLUGIN_NAME",
+    "WEIGHTS",
     "create_adaclip_model",
     "download_weights",
     "get_weights_dir",

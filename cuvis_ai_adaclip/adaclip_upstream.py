@@ -25,11 +25,11 @@ from method.custom_clip import (
     get_model_config,
 )
 
-from .weights import download_weights, list_available_weights
+from .weights import CLIP_BACKBONE, CLIP_BACKBONE_NAME, download_weights, list_available_weights
 
 # OpenCLIP backbone name -> cuvis-ai-core registry name. Only mirrored backbones;
 # any other name keeps the vendored loader's download from OpenAI.
-_MIRRORED_CLIP_BACKBONES: dict[str, str] = {"ViT-L-14-336": "clip_vit_l_14_336"}
+_MIRRORED_CLIP_BACKBONES: dict[str, str] = {CLIP_BACKBONE_NAME: CLIP_BACKBONE.name}
 
 
 def _seed_clip_backbone(backbone: str, cache_dir: Path) -> None:
