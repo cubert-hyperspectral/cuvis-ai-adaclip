@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+
+- Security: the pip-audit step now fails the build (it ran behind `|| true`) and the locked environment is refreshed for the open advisories: aiohttp 3.14.3, anyio 4.14.2, cryptography 50.0.1, gitpython 3.1.62, gradio 6.28.0 (the upstream demo `app.py` is its only user; fastapi and starlette move with it), hydra-core 1.3.7, lxml 6.1.3, msgpack 1.2.2, orjson 3.12.0, pip 26.2.1, pygments 2.21.0, pytest 9.1.1, python-dotenv 1.2.3, python-multipart 0.0.32, pytorch-lightning 2.6.6, werkzeug 3.1.8. Ignored with a comment in CI: torch CVE-2025-3000 (fixed in 2.13.0, the pinned line stays) and setuptools PYSEC-2026-3447 (fixed in 83.0.0, but the pinned torch 2.12.0 wheel requires setuptools<82; macOS sdist builds only).
+
 ## 0.5.0 - 2026-09-07
 
 - `cuvis_ai_adaclip/weights.py` declares the three AdaCLIP heads (picked by `weight_name`, `adaclip_all` the default, `checkpoint_path` bypasses the cache) and the CLIP ViT-L/14 at 336 px backbone as `WEIGHTS`, registered with `ModelWeights.register` at import and projected by cuvis-ai's `emit_metadata` into the manifest's `weights:` block; `ADACLIP_WEIGHTS` and the mirrored-backbone table are derived from the declarations instead of being written twice. Floors `cuvis-ai-core>=0.17.0` (upgrade the plugins together with core) and `cuvis-ai-schemas>=0.12.0`.
