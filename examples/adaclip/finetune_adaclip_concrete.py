@@ -18,9 +18,9 @@ from pathlib import Path
 
 import hydra
 import torch
-from cuvis_ai.deciders.binary_decider import QuantileBinaryDecider
 from cuvis_ai.node.channel_mixer import ConcreteChannelMixer
 from cuvis_ai.node.data import LentilsAnomalyDataNode
+from cuvis_ai.node.deciders.binary_decider import QuantileBinaryDecider
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.normalization import MinMaxNormalizer
