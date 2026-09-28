@@ -19,10 +19,10 @@ import time
 from pathlib import Path
 
 import click
-from cuvis_ai.deciders.two_stage_decider import TwoStageBinaryDecider
 from cuvis_ai.node.anomaly_visualization import RGBAnomalyMask, ScoreHeatmapVisualizer
 from cuvis_ai.node.channel_selector import CIRSelector
 from cuvis_ai.node.data import LentilsAnomalyDataNode
+from cuvis_ai.node.deciders.two_stage_decider import TwoStageBinaryDecider
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline

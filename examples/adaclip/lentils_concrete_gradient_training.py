@@ -23,9 +23,9 @@ from pathlib import Path
 
 import hydra
 import torch
-from cuvis_ai.deciders.two_stage_decider import TwoStageBinaryDecider
 from cuvis_ai.node.channel_mixer import ConcreteChannelMixer
 from cuvis_ai.node.data import LentilsAnomalyDataNode
+from cuvis_ai.node.deciders.two_stage_decider import TwoStageBinaryDecider
 from cuvis_ai.node.losses import AnomalyBCEWithLogits, DistinctnessLoss, IoULoss
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.monitor import TensorBoardMonitorNode

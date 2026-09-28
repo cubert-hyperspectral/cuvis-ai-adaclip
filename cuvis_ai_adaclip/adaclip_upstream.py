@@ -1,8 +1,9 @@
 """High-level AdaCLIP model wrapper backed by the forked AdaCLIP repo.
 
-This module mirrors the behavior of the ``cuvis_ai.anomaly.adaclip.model``
-wrapper, but imports AdaCLIP directly from the upstream implementation in
-this repository (``method/*.py``) instead of any code inside ``cuvis_ai``.
+This module mirrors the behavior of the AdaCLIP model wrapper that once lived in
+the cuvis-ai node library, but imports AdaCLIP directly from the upstream
+implementation in this repository (``method/*.py``) instead of any code inside
+``cuvis_ai``.
 """
 
 from __future__ import annotations

@@ -1,7 +1,8 @@
 # Changelog
 
-## [Unreleased]
+## 0.5.1 - 2026-09-28
 
+- The eight shipped pipelines (`configs/pipeline/*.yaml`) and the seventeen example scripts name the decider nodes by their real module path (`cuvis_ai.node.deciders.binary_decider.QuantileBinaryDecider`, `cuvis_ai.node.deciders.two_stage_decider.TwoStageBinaryDecider`) instead of the deprecated top-level re-exports cuvis-ai has carried since 0.8 and is removing; `tests/test_no_shim_module_paths.py` scans the repository so a re-export path cannot come back. The `examples` extra floors `cuvis-ai>=0.17.2`, the release the rewrite was verified against; `cuvis-ai-core>=0.17.0` is unchanged. Every earlier tag imports the re-exports and stops working against a cuvis-ai without them, so upgrade to this release rather than pinning an older one.
 - Security: the pip-audit step now fails the build (it ran behind `|| true`) and the locked environment is refreshed for the open advisories: aiohttp 3.14.3, anyio 4.14.2, cryptography 50.0.1, gitpython 3.1.62, gradio 6.28.0 (the upstream demo `app.py` is its only user; fastapi and starlette move with it), hydra-core 1.3.7, lxml 6.1.3, msgpack 1.2.2, orjson 3.12.0, pip 26.2.1, pygments 2.21.0, pytest 9.1.1, python-dotenv 1.2.3, python-multipart 0.0.32, pytorch-lightning 2.6.6, werkzeug 3.1.8. Ignored with a comment in CI: torch CVE-2025-3000 (fixed in 2.13.0, the pinned line stays) and setuptools PYSEC-2026-3447 (fixed in 83.0.0, but the pinned torch 2.12.0 wheel requires setuptools<82; macOS sdist builds only).
 
 ## 0.5.0 - 2026-09-07

@@ -20,10 +20,10 @@ from pathlib import Path
 
 import hydra
 import torch
-from cuvis_ai.deciders.binary_decider import QuantileBinaryDecider
 from cuvis_ai.node.anomaly_visualization import AnomalyMask, ScoreHeatmapVisualizer
 from cuvis_ai.node.channel_mixer import LearnableChannelMixer
 from cuvis_ai.node.data import LentilsAnomalyDataNode
+from cuvis_ai.node.deciders.binary_decider import QuantileBinaryDecider
 from cuvis_ai.node.losses import IoULoss
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
