@@ -54,8 +54,10 @@ dependencies = [
 
 [project.optional-dependencies]
 examples = [
-    # cuvis-ai 0.9.0 dropped the cuvis SDK dependency, so the examples pull no SDK.
-    "cuvis-ai>=0.9.0",
+    # The examples and the shipped pipelines address the decider nodes by their
+    # cuvis_ai.node.* module path; 0.17.2 is the release that path was verified against.
+    # cuvis-ai has not depended on the cuvis SDK since 0.9.0, so the examples pull no SDK.
+    "cuvis-ai>=0.17.2",
     "loguru",
 ]
 dev = [
