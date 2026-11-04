@@ -88,6 +88,13 @@ class TestOnnxExportAndRuntimeParity:
         out_forward = detector.forward(rgb_image=rgb)
         output_names = list(out_forward.keys())
 
+        # One eager call outside tracing, on a real example: this is what builds
+        # AntialiasResizeMatrix's buffers. The real span exporter's own eager
+        # parity check does this for us before tracing; this direct torch.onnx.export
+        # call needs it done explicitly.
+        with torch.no_grad():
+            adapter(rgb_image=rgb)
+
         onnx_program = torch.onnx.export(
             adapter,
             (rgb,),
@@ -106,6 +113,14 @@ class TestOnnxExportAndRuntimeParity:
         for key, forward_value in out_forward.items():
             onnx_value = torch.from_numpy(onnx_outputs[key])
             assert torch.allclose(onnx_value, forward_value, atol=1e-5, rtol=1e-4), key
+
+        onnx_model = onnx.load(str(onnx_path))
+        for node in onnx_model.graph.node:
+            if node.op_type != "Resize":
+                continue
+            for attr in node.attribute:
+                if attr.name == "antialias":
+                    assert attr.i == 0, "the exported graph must not antialias its Resize node"
 
 
 class TestOnnxExportSlow:
@@ -137,6 +152,9 @@ class TestOnnxExportSlow:
         rgb = rgb_batch(1, size=detector.image_size)
 
         out_forward = detector.forward(rgb_image=rgb)
+        # Build AntialiasResizeMatrix's buffers with one real eager call before tracing.
+        with torch.no_grad():
+            adapter(rgb_image=rgb)
         onnx_program = torch.onnx.export(
             adapter,
             (rgb,),

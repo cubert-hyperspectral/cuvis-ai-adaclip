@@ -41,6 +41,7 @@ from cuvis_ai_adaclip.adaclip_upstream import (
     AdaCLIPModel,
     download_weights,
 )
+from cuvis_ai_adaclip.node._antialias_resize_matrix import AntialiasResizeMatrix
 
 
 class _AdaCLIPExportModule(torch.nn.Module):
@@ -48,12 +49,32 @@ class _AdaCLIPExportModule(torch.nn.Module):
 
     Replaces the parts of the eager forward pass a traced graph cannot carry:
     the PIL/branching preprocessing becomes tensor-only resize and normalize,
-    the per-call BPE tokenization becomes two registered buffers of token ids
-    (precomputed once, outside tracing, for the node's ``prompt_text``), and
-    the AdaCLIP model itself runs with ``use_hsf`` forced off so the k-means
-    fusion in :class:`cuvis_ai_adaclip.node.semantic_fusion.AdaCLIPSemanticFusion`
-    stays outside the graph. The text encoder still runs inside the graph (the
-    prompt depth and prompter layers are dynamic), only the tokenization is baked.
+    the antialiased bicubic resize becomes :class:`AntialiasResizeMatrix` (two
+    buffers applied with ``einsum`` instead of an ONNX ``Resize`` node with
+    antialiasing, which ONNX Runtime does not evaluate identically to
+    torchvision at real image sizes, and which TensorRT does not accept at
+    all), the per-call BPE tokenization becomes two registered buffers of
+    token ids (precomputed once, outside tracing, for the node's
+    ``prompt_text``), and the AdaCLIP model itself runs with ``use_hsf``
+    forced off so the k-means fusion in
+    :class:`cuvis_ai_adaclip.node.semantic_fusion.AdaCLIPSemanticFusion` stays
+    outside the graph. The text encoder still runs inside the graph (the
+    prompt depth and prompter layers are dynamic), only the tokenization is
+    baked.
+
+    The resize runs with ``quantize_range=(0, 255)`` (see
+    :class:`AntialiasResizeMatrix`), matching the uint8 rounding the node's
+    own preprocessing applies between the two resize passes; this narrows the
+    gap between the matrix and the node's own forward() from several
+    intensity levels to about one on real, saturated image content. A
+    real recorded frame still disagrees with forward() by a few parts in a
+    thousand on the ``scores`` port after the full backbone: see
+    ``tests/test_antialias_resize_matrix.py`` for the measured floor.
+
+    The resize matrices are not known until the first real input is seen, so
+    :meth:`AdaCLIPDetector.export_module` does not need to warm them up itself:
+    the exporter's own eager parity check runs this adapter on a real example
+    before tracing starts, which builds them.
     """
 
     def __init__(self, node: AdaCLIPDetector) -> None:
@@ -62,6 +83,9 @@ class _AdaCLIPExportModule(torch.nn.Module):
         self.clip_model = node._adaclip_model._clip_model
         self.image_size = node.image_size
         self.gaussian_sigma = node.gaussian_sigma
+        self.resize = AntialiasResizeMatrix(
+            (node.image_size, node.image_size), quantize_range=(0.0, 255.0)
+        )
 
         text_layer = self.clip_model.text_embedding_layer
         prompt_text = node.prompt_text.replace("-", " ")
@@ -90,18 +114,29 @@ class _AdaCLIPExportModule(torch.nn.Module):
         """Tensor-only resize and normalize, matching the node's inference preprocessing.
 
         Mirrors ``AdaCLIPDetector._preprocess_rgb_torch_pil_match`` at
-        ``enable_gradients=False``: bicubic resize with antialias on a uint8
-        tensor, then normalize. The export graph never needs gradients through
-        preprocessing, so the traceable uint8 path is the only one implemented.
+        ``enable_gradients=False``: antialiased bicubic resize on a uint8
+        tensor, then normalize. The resize itself runs through
+        :class:`AntialiasResizeMatrix` rather than
+        ``torchvision.transforms.v2.functional.resize`` directly, so the
+        exported graph carries matrix multiplications instead of an
+        antialiased ``Resize`` node; its output is already exactly
+        ``(image_size, image_size)``, so no center crop is needed. The export
+        graph never needs gradients through preprocessing, so the traceable
+        uint8 path is the only one implemented.
         """
         x = rgb_bhwc
         x = torch.where(x.amax(dim=(1, 2, 3), keepdim=True) <= 1.0, x * 255.0, x)
         x = x.round().clamp(0, 255).to(torch.uint8)
         x = x.permute(0, 3, 1, 2)  # BHWC -> BCHW
-        s = self.image_size
-        x = F_v2.resize(x, size=[s, s], interpolation=InterpolationMode.BICUBIC, antialias=True)
-        x = F_v2.center_crop(x, output_size=[s, s])
-        x = x.to(torch.float32) / 255.0
+        # torchvision resizes this uint8 tensor directly, so the bicubic kernel's
+        # ringing (negative lobes near a sharp edge or, as here, a saturated
+        # region) saturates to the dtype's [0, 255] range as part of the resize.
+        # AntialiasResizeMatrix is a plain float linear operator with no such
+        # saturation, so its raw output can overshoot past 255 on real, highly
+        # saturated data (observed up to about 257 on a recorded reflectance
+        # frame); round and clamp its output the same way the uint8 dtype would.
+        x = self.resize(x.to(torch.float32)).round().clamp(0, 255)
+        x = x / 255.0
         return (x - self._clip_mean) / self._clip_std
 
     def _encode_text_state(self, token_ids: torch.Tensor) -> torch.Tensor:
