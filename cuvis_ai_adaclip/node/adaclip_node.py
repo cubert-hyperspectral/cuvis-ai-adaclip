@@ -43,6 +43,114 @@ from cuvis_ai_adaclip.adaclip_upstream import (
 )
 
 
+class _AdaCLIPExportModule(torch.nn.Module):
+    """Traceable adapter for :meth:`AdaCLIPDetector.export_module`.
+
+    Replaces the parts of the eager forward pass a traced graph cannot carry:
+    the PIL/branching preprocessing becomes tensor-only resize and normalize,
+    the per-call BPE tokenization becomes two registered buffers of token ids
+    (precomputed once, outside tracing, for the node's ``prompt_text``), and
+    the AdaCLIP model itself runs with ``use_hsf`` forced off so the k-means
+    fusion in :class:`cuvis_ai_adaclip.node.semantic_fusion.AdaCLIPSemanticFusion`
+    stays outside the graph. The text encoder still runs inside the graph (the
+    prompt depth and prompter layers are dynamic), only the tokenization is baked.
+    """
+
+    def __init__(self, node: AdaCLIPDetector) -> None:
+        super().__init__()
+        assert node._adaclip_model is not None
+        self.clip_model = node._adaclip_model._clip_model
+        self.image_size = node.image_size
+        self.gaussian_sigma = node.gaussian_sigma
+
+        text_layer = self.clip_model.text_embedding_layer
+        prompt_text = node.prompt_text.replace("-", " ")
+        token_id_tensors = []
+        for state in text_layer.prompt_state:
+            prompted_state = [phrase.format(prompt_text) for phrase in state]
+            prompted_sentences = [
+                template.format(s)
+                for s in prompted_state
+                for template in text_layer.prompt_templates
+            ]
+            token_id_tensors.append(text_layer.tokenize(prompted_sentences, context_length=77))
+
+        # One buffer per prompt state (normal, abnormal); their token counts differ
+        # (len(prompt_normal) != len(prompt_abnormal) times the template count), so
+        # they are kept separate rather than stacked into one regular tensor.
+        self.register_buffer("_normal_token_ids", token_id_tensors[0], persistent=False)
+        self.register_buffer("_abnormal_token_ids", token_id_tensors[1], persistent=False)
+
+        mean = torch.tensor(OPENAI_DATASET_MEAN, dtype=torch.float32).view(1, 3, 1, 1)
+        std = torch.tensor(OPENAI_DATASET_STD, dtype=torch.float32).view(1, 3, 1, 1)
+        self.register_buffer("_clip_mean", mean, persistent=False)
+        self.register_buffer("_clip_std", std, persistent=False)
+
+    def _preprocess(self, rgb_bhwc: torch.Tensor) -> torch.Tensor:
+        """Tensor-only resize and normalize, matching the node's inference preprocessing.
+
+        Mirrors ``AdaCLIPDetector._preprocess_rgb_torch_pil_match`` at
+        ``enable_gradients=False``: bicubic resize with antialias on a uint8
+        tensor, then normalize. The export graph never needs gradients through
+        preprocessing, so the traceable uint8 path is the only one implemented.
+        """
+        x = rgb_bhwc
+        x = torch.where(x.amax(dim=(1, 2, 3), keepdim=True) <= 1.0, x * 255.0, x)
+        x = x.round().clamp(0, 255).to(torch.uint8)
+        x = x.permute(0, 3, 1, 2)  # BHWC -> BCHW
+        s = self.image_size
+        x = F_v2.resize(x, size=[s, s], interpolation=InterpolationMode.BICUBIC, antialias=True)
+        x = F_v2.center_crop(x, output_size=[s, s])
+        x = x.to(torch.float32) / 255.0
+        return (x - self._clip_mean) / self._clip_std
+
+    def _encode_text_state(self, token_ids: torch.Tensor) -> torch.Tensor:
+        """Reproduce ``TextEmbebddingLayer.encode_text`` for one prompt state."""
+        class_embeddings = self.clip_model.encode_text(token_ids)
+        class_embeddings = class_embeddings / class_embeddings.norm(dim=-1, keepdim=True)
+        class_embedding = class_embeddings.mean(dim=0)
+        return class_embedding / class_embedding.norm()
+
+    def forward(self, rgb_image: torch.Tensor) -> dict[str, torch.Tensor]:
+        """Run the exportable span: preprocessing, CLIP encode, plain similarity.
+
+        Parameters
+        ----------
+        rgb_image :
+            RGB image tensor ``[B, H, W, 3]``, matching the node's input port.
+        """
+        _, h, w, _ = rgb_image.shape
+        img_tensor = self._preprocess(rgb_image)
+
+        image_feature, patch_tokens, text_feature = self.clip_model.extract_feat(img_tensor, [""])
+
+        normal_feature = self._encode_text_state(self._normal_token_ids)
+        abnormal_feature = self._encode_text_state(self._abnormal_token_ids)
+        text_feature = torch.stack([normal_feature, abnormal_feature], dim=1).unsqueeze(0)
+        text_feature = torch.nn.functional.normalize(text_feature, dim=1)
+
+        anomaly_map, anomaly_score = self.clip_model.visual_text_similarity(
+            image_feature, patch_tokens, text_feature, aggregation=True
+        )
+        anomaly_map = anomaly_map.squeeze(1)  # [B, H', W'], matching AdaCLIP.forward
+        if self.gaussian_sigma > 0:
+            anomaly_map = AdaCLIPModel._gaussian_smooth_2d(anomaly_map, self.gaussian_sigma)
+        anomaly_map = torch.nn.functional.interpolate(
+            anomaly_map.unsqueeze(1), size=(h, w), mode="bilinear", align_corners=False
+        )
+        scores = anomaly_map.squeeze(1).unsqueeze(-1)  # [B, H, W, 1]
+
+        return {
+            "scores": scores,
+            "anomaly_score": anomaly_score,
+            "per_layer_scores": torch.zeros(1, 1, 1, 1, device=scores.device),
+            "image_score_2ch": torch.stack([1 - anomaly_score, anomaly_score], dim=1),
+            "patch_tokens": torch.stack(patch_tokens, dim=1),
+            "image_feature": image_feature,
+            "text_feature": text_feature,
+        }
+
+
 class AdaCLIPDetector(Node):
     """AdaCLIP zero-shot anomaly detector node (plugin version).
 
@@ -76,6 +184,9 @@ class AdaCLIPDetector(Node):
             NodeTag.INFERENCE,
             NodeTag.LEARNABLE,
             NodeTag.TORCH,
+            # Exports with semantic_fusion=False: the k-means fusion runs outside the
+            # graph in AdaCLIPSemanticFusion, since sklearn's KMeans is not traceable.
+            NodeTag.ONNX,
         }
     )
     ADAPTER_MODULE_NAMES: tuple[str, ...] = (
@@ -125,6 +236,38 @@ class AdaCLIPDetector(Node):
             ),
             optional=True,
         ),
+        "patch_tokens": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, -1),
+            description=(
+                "Projected patch tokens for every output layer, stacked as "
+                "[B, num_layers, N, D] (N patches, D the text embedding width). "
+                "At image_size=518 with the default backbone this is about 17 MB "
+                "per frame in float32. Only populated when semantic_fusion=False; "
+                "empty (1x1x1x1) tensor otherwise."
+            ),
+            optional=True,
+        ),
+        "image_feature": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1),
+            description=(
+                "Pooled and projected image feature [B, D], before the k-means "
+                "semantic fusion. Only populated when semantic_fusion=False; "
+                "empty (1x1) tensor otherwise."
+            ),
+            optional=True,
+        ),
+        "text_feature": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1),
+            description=(
+                "Text embedding [1, D, 2] (normal, anomaly) shared across the image "
+                "batch, in the shape AdaCLIP's visual_text_similarity expects. Only "
+                "populated when semantic_fusion=False; empty (1x1x1) tensor otherwise."
+            ),
+            optional=True,
+        ),
     }
 
     def __init__(
@@ -142,6 +285,8 @@ class AdaCLIPDetector(Node):
         enable_gradients: bool = False,
         use_torch_preprocess: bool = True,
         training_aggregation: bool = True,
+        semantic_fusion: bool = True,
+        k_clusters: int = 20,
         **kwargs: Any,
     ) -> None:
         super().__init__(
@@ -158,6 +303,8 @@ class AdaCLIPDetector(Node):
             enable_gradients=enable_gradients,
             use_torch_preprocess=use_torch_preprocess,
             training_aggregation=training_aggregation,
+            semantic_fusion=semantic_fusion,
+            k_clusters=k_clusters,
             **kwargs,
         )
 
@@ -174,6 +321,13 @@ class AdaCLIPDetector(Node):
         self.enable_gradients = enable_gradients
         self.use_torch_preprocess = use_torch_preprocess
         self.training_aggregation = training_aggregation
+        # True (default) keeps today's behavior exactly: the k-means hybrid semantic
+        # fusion runs inside the model and folds into anomaly_score. False drops HSF
+        # from the image score and exposes patch_tokens/image_feature/text_feature so
+        # an AdaCLIPSemanticFusion node downstream (or the ONNX export) can reproduce
+        # it outside the traced graph.
+        self.semantic_fusion = semantic_fusion
+        self.k_clusters = k_clusters
         self._warmup_done = False
 
         # Log initialization parameters at DEBUG level (only shown if debug logging enabled)
@@ -237,6 +391,8 @@ class AdaCLIPDetector(Node):
             image_size=self.image_size,
             prompting_depth=self.prompting_depth,
             prompting_length=self.prompting_length,
+            use_hsf=self.semantic_fusion,
+            k_clusters=self.k_clusters,
             device=str(device),  # Initial device hint
         )
         model.load_weights(weight_path)
@@ -547,7 +703,12 @@ class AdaCLIPDetector(Node):
         if self.training and not self.training_aggregation:
             use_aggregation = False
 
-        # Run inference
+        # Run inference. With semantic_fusion=False, the model already dropped HSF
+        # from the image score (use_hsf=False on the underlying AdaCLIP model), and
+        # we additionally ask for the raw features an AdaCLIPSemanticFusion node
+        # downstream would need to reproduce it.
+        want_components = not self.semantic_fusion
+        components: dict[str, torch.Tensor] = {}
         if torch.cuda.is_available():
             torch.cuda.synchronize()
         inference_start = time.perf_counter()
@@ -555,21 +716,27 @@ class AdaCLIPDetector(Node):
         with grad_ctx():
             if self.use_half_precision and torch.cuda.is_available():
                 with torch.amp.autocast("cuda", dtype=torch.float16):
-                    anomaly_map, anomaly_score = self._adaclip_model.predict(
+                    predict_out = self._adaclip_model.predict(
                         img_tensor,
                         prompt=self.prompt_text,
                         sigma=self.gaussian_sigma,
                         enable_gradients=self.enable_gradients,
                         aggregation=use_aggregation,
+                        return_components=want_components,
                     )
             else:
-                anomaly_map, anomaly_score = self._adaclip_model.predict(
+                predict_out = self._adaclip_model.predict(
                     img_tensor,
                     prompt=self.prompt_text,
                     sigma=self.gaussian_sigma,
                     enable_gradients=self.enable_gradients,
                     aggregation=use_aggregation,
+                    return_components=want_components,
                 )
+        if want_components:
+            anomaly_map, anomaly_score, components = predict_out
+        else:
+            anomaly_map, anomaly_score = predict_out
         if torch.cuda.is_available():
             torch.cuda.synchronize()
         inference_end = time.perf_counter()
@@ -683,6 +850,15 @@ class AdaCLIPDetector(Node):
         #           f"min={scores.min().item():.4f}, max={scores.max().item():.4f}, "
         #           f"mean={scores.mean().item():.4f}, requires_grad={scores.requires_grad}")
 
+        if components:
+            patch_tokens = components["patch_tokens"]
+            image_feature = components["image_feature"]
+            text_feature = components["text_feature"]
+        else:
+            patch_tokens = torch.zeros(1, 1, 1, 1, device=scores.device)
+            image_feature = torch.zeros(1, 1, device=scores.device)
+            text_feature = torch.zeros(1, 1, 1, device=scores.device)
+
         return {
             "scores": scores,
             "anomaly_score": anomaly_score_1d
@@ -690,7 +866,27 @@ class AdaCLIPDetector(Node):
             else anomaly_score_1d.squeeze(),
             "per_layer_scores": per_layer_scores,
             "image_score_2ch": image_score_2ch,
+            "patch_tokens": patch_tokens,
+            "image_feature": image_feature,
+            "text_feature": text_feature,
         }
+
+    def export_module(self) -> torch.nn.Module:
+        """Return the traceable adapter the span exporter runs in place of forward.
+
+        Valid only with ``semantic_fusion=False``: the k-means hybrid semantic
+        fusion runs on sklearn's ``KMeans``, which the dynamo exporter cannot
+        trace. Add :class:`cuvis_ai_adaclip.node.semantic_fusion.AdaCLIPSemanticFusion`
+        after this node to reproduce it outside the graph.
+        """
+        if self.semantic_fusion:
+            raise ValueError(
+                "AdaCLIPDetector.export_module() needs semantic_fusion=False: the "
+                "k-means hybrid semantic fusion cannot be traced. Set "
+                "semantic_fusion=False and add AdaCLIPSemanticFusion after this node."
+            )
+        self._ensure_model_loaded()
+        return _AdaCLIPExportModule(self)
 
     # def _save_debug_tensor(
     #     self, tensor: torch.Tensor, name: str, context: Context | None, frame_idx: int
