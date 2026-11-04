@@ -2,5 +2,6 @@
 
 from .adaclip_node import AdaCLIPDetector
 from .losses import AdaCLIPFocalDiceLoss, LossNode
+from .semantic_fusion import AdaCLIPSemanticFusion
 
-__all__ = ["AdaCLIPDetector", "LossNode", "AdaCLIPFocalDiceLoss"]
+__all__ = ["AdaCLIPDetector", "AdaCLIPSemanticFusion", "LossNode", "AdaCLIPFocalDiceLoss"]

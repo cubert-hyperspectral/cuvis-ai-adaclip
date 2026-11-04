@@ -20,7 +20,12 @@ from .adaclip_upstream import (  # noqa: F401
     download_weights,
     list_available_weights,
 )
-from .node import AdaCLIPDetector, AdaCLIPFocalDiceLoss, LossNode  # noqa: F401
+from .node import (  # noqa: F401
+    AdaCLIPDetector,
+    AdaCLIPFocalDiceLoss,
+    AdaCLIPSemanticFusion,
+    LossNode,
+)
 from .weights import ADACLIP_WEIGHTS, PLUGIN_NAME, WEIGHTS, get_weights_dir  # noqa: F401
 
 # Declaring the weights here (idempotent) is what lets ``download_weights`` resolve the
@@ -47,6 +52,7 @@ __all__ = [
     "AdaCLIPDetector",
     "AdaCLIPFocalDiceLoss",
     "AdaCLIPModel",
+    "AdaCLIPSemanticFusion",
     "PLUGIN_NAME",
     "WEIGHTS",
     "create_adaclip_model",
