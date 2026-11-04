@@ -124,6 +124,7 @@ class TestAdaCLIPDetectorNode:
                 sigma: float = 4.0,
                 aggregation: bool = True,
                 enable_gradients: bool = False,
+                return_components: bool = False,
             ) -> tuple[list[torch.Tensor], torch.Tensor]:
                 b = image.shape[0]
                 layer_1 = torch.softmax(torch.rand(b, 2, 8, 8), dim=1)
@@ -221,6 +222,7 @@ class TestAdaCLIPDetectorNode:
                 sigma: float = 4.0,
                 aggregation: bool = True,
                 enable_gradients: bool = False,  # NEW, default False
+                return_components: bool = False,
             ) -> tuple[torch.Tensor, torch.Tensor]:
                 return torch.rand(1, 32, 32), torch.tensor([0.5])
 
