@@ -27,6 +27,7 @@ def _build_export_ready_detector(prompt_text: str = "", gaussian_sigma: float = 
         enable_warmup=False,
         image_size=64,
         semantic_fusion=False,
+        integer_preprocess=False,
         prompt_text=prompt_text,
         gaussian_sigma=gaussian_sigma,
     )
@@ -36,13 +37,26 @@ def _build_export_ready_detector(prompt_text: str = "", gaussian_sigma: float = 
 
 
 class TestExportModuleRefusal:
-    """export_module() only makes sense with semantic_fusion=False."""
+    """export_module() only makes sense with semantic_fusion=False and integer_preprocess=False."""
 
     def test_semantic_fusion_true_raises(self) -> None:
         """export_module() refuses when HSF would need tracing sklearn's KMeans."""
-        detector = AdaCLIPDetector()
+        detector = AdaCLIPDetector(integer_preprocess=False)
         with pytest.raises(ValueError, match="semantic_fusion=False"):
             detector.export_module()
+
+    def test_integer_preprocess_true_raises(self) -> None:
+        """export_module() refuses when the resize would be a uint8 kernel the matrix can't match."""
+        detector = AdaCLIPDetector(semantic_fusion=False)
+        with pytest.raises(ValueError, match="integer_preprocess=False"):
+            detector.export_module()
+
+    def test_both_defaults_raises_naming_both(self) -> None:
+        """With neither flag set, the refusal names both, not just the first one checked."""
+        detector = AdaCLIPDetector()
+        with pytest.raises(ValueError, match="semantic_fusion=False") as excinfo:
+            detector.export_module()
+        assert "integer_preprocess=False" in str(excinfo.value)
 
 
 class TestExportModuleParity:
@@ -145,6 +159,7 @@ class TestOnnxExportSlow:
             use_half_precision=False,
             enable_warmup=False,
             semantic_fusion=False,
+            integer_preprocess=False,
         )
         detector.eval()
         adapter = detector.export_module()

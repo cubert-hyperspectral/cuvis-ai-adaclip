@@ -18,23 +18,16 @@ This mirrors ``cuvis_ai_dinomaly.node._antialias_resize_matrix.AntialiasResizeMa
 mode differs). A shared helper in cuvis-ai-core is a natural follow-up once a
 second plugin needs the same pattern; for now this is a plugin-local copy.
 
-AdaCLIP's preprocessing resizes a uint8 tensor (to match PIL's byte-level
-behavior), and torchvision's antialiased bicubic resize on an integer dtype
-is not the same linear operator as on a float dtype (confirmed directly
-against ``_upsample_bicubic2d_aa``, on ordinary random data, independent of
-saturation). ``quantize_range`` on :class:`AntialiasResizeMatrix` narrows that
-gap from several intensity levels to about one, the practical floor for
-reconstructing an integer-dtype kernel from float-domain probing; see its
-docstring. A real recorded reflectance frame (0 to about 18700, saturating at
-the 255 clamp before resize) needs ``quantize_range`` to bring the detector's
-``scores`` port within low 1e-3 of the node's own forward(), down from the
-unmitigated 2.998e-3; it does not reach the exporter's default 1e-5 on that
-frame. On the tiny random fixtures this repository tests against by default,
-the gap stays below the export tests' tolerance even without
-``quantize_range``, which is why the default export tests pass while the
-acceptance run on real cu3s frames needs a wider tolerance (documented on the
-acceptance test) until a native ONNX antialiased-resize operator gives true
-bit parity.
+This operator reconstructs torchvision's **float-dtype** resize kernel
+exactly (see the module's own parity test: within 2.2e-5 on a real-sized
+downscale). It is not a reconstruction of torchvision's **integer-dtype**
+resize: resizing a uint8 tensor is not the same linear operator in
+torchvision/ATen as resizing the same values in float32 (confirmed directly
+against ``_upsample_bicubic2d_aa`` on ordinary random data, independent of
+saturation or rounding convention; see ``AdaCLIPDetector``'s
+``integer_preprocess`` hparam, which must be ``False`` for ``export_module()``
+so the node's own preprocessing stays in float32 through the resize and this
+operator is an exact stand-in for it).
 """
 
 from __future__ import annotations
@@ -89,33 +82,18 @@ class AntialiasResizeMatrix(nn.Module):
     before the matrices exist raises, since a traced graph cannot run the
     (control-flow-heavy) matrix construction itself.
 
-    ``quantize_range`` reproduces an integer dtype's rounding between the two
-    separable passes (width then height, torchvision's own pass order for a
-    landscape image: the axis with the larger downscale factor runs first).
-    Resizing an integer-dtype tensor is not one linear operator in
-    torchvision/ATen: measured directly (``_upsample_bicubic2d_aa``), its
-    integer-dtype kernel and its float-dtype kernel disagree by a few
-    intensity levels on ordinary random data, independent of saturation, and
-    the gap is not a rounding-convention mismatch (round-half-up and
-    round-half-to-even were both tried; neither closes it) or a probing
-    artifact (the probed matrix's rows sum to 1 at float64 machine precision).
-    It is a different internal implementation per dtype. Quantizing between
-    the two passes the way an integer dtype would reduces a multi-level
-    drift (observed up to 2.3 on a 0-255 scale, from one combined matrix
-    multiply, on a real recorded reflectance frame) to the one-level
-    rounding quantum that is the practical floor for any float-domain
-    reconstruction of that kernel; it does not eliminate the floor. Leave it
-    ``None`` (the default) for a resize on continuous, unclamped data, where
-    the single linear operator already matches torchvision's own float-dtype
-    resize closely (see the module's own parity test).
+    The two matrices are applied as two separate passes (width then height,
+    torchvision's own pass order for a landscape image), which is exactly
+    equivalent to one combined two-axis matrix multiply for a float-dtype
+    input: both are the same linear operator, just associated differently.
+    This matches torchvision's own float-dtype antialiased resize to float
+    precision (see the module's parity test), with no quantization step
+    needed between the two passes.
     """
 
-    def __init__(
-        self, size_out: tuple[int, int], quantize_range: tuple[float, float] | None = None
-    ) -> None:
+    def __init__(self, size_out: tuple[int, int]) -> None:
         super().__init__()
         self.size_out = (int(size_out[0]), int(size_out[1]))
-        self.quantize_range = quantize_range
         self._built = False
         self._size_in: tuple[int, int] | None = None
 
@@ -130,13 +108,7 @@ class AntialiasResizeMatrix(nn.Module):
         self._built = True
 
     def forward(self, x: Tensor) -> Tensor:
-        """Resize ``x`` (``[B, C, H, W]``) to ``size_out``.
-
-        Applied as two separate passes (width then height, matching
-        torchvision's own pass order for this orientation), with the
-        intermediate result rounded and clamped to ``quantize_range`` when
-        set; see the class docstring for why.
-        """
+        """Resize ``x`` (``[B, C, H, W]``) to ``size_out``."""
         size_in = (int(x.shape[-2]), int(x.shape[-1]))
         if not self._built:
             if torch.compiler.is_compiling():
@@ -152,7 +124,4 @@ class AntialiasResizeMatrix(nn.Module):
                 f"{size_in}. The module is fixed to one input size once built."
             )
         width_resized = torch.einsum("bchw,pw->bchp", x, self.a_w)
-        if self.quantize_range is not None:
-            low, high = self.quantize_range
-            width_resized = width_resized.round().clamp(low, high)
         return torch.einsum("oh,bchw->bcow", self.a_h, width_resized)

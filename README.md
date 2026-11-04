@@ -241,8 +241,20 @@ modes. See
 [`examples/adaclip/adaclip_export_two_node.yaml`](examples/adaclip/adaclip_export_two_node.yaml)
 for the full two-node pipeline.
 
-Calling `export_module()` while `semantic_fusion` is `true` raises: set it to
-`false` first.
+`export_module()` also needs `integer_preprocess: false`. The node's default
+preprocessing (`integer_preprocess: true`) resizes a uint8 tensor to match
+PIL's byte-level behavior bit-identically; torchvision's antialiased bicubic
+resize on an integer dtype is a different internal implementation than on a
+float dtype, so an exported graph built from that default would disagree
+with the node's own output by a few parts in a thousand on `scores`, past
+the exporter's default parity tolerance. With `integer_preprocess: false`
+the node keeps the image in float32 through the resize on every
+preprocessing path, which the exported graph's resize (two fixed matrices
+built from torchvision's own kernel) reconstructs exactly.
+
+Calling `export_module()` while `semantic_fusion` is `true` or
+`integer_preprocess` is `true` raises, naming whichever of the two still
+needs to be set to `false`.
 
 ## Pre-trained Weights
 

@@ -45,6 +45,7 @@ nodes:
     enable_gradients: false
     use_torch_preprocess: true
     semantic_fusion: false
+    integer_preprocess: false
     k_clusters: 20
 - name: adaclip_fusion
   class_name: cuvis_ai_adaclip.node.semantic_fusion.AdaCLIPSemanticFusion

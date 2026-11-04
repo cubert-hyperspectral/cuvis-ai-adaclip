@@ -9,6 +9,14 @@ about 3e-3 against atol=1e-5). AntialiasResizeMatrix replaces the resize with
 two fixed matrices built from torchvision's own kernel, so ONNX Runtime and
 torch run the identical matrix multiplication instead of two different
 resize implementations.
+
+This operator reconstructs torchvision's float-dtype resize kernel exactly
+(the parity test below). It does not reconstruct torchvision's integer-dtype
+resize kernel, which is a different internal implementation; that gap is why
+AdaCLIPDetector gained an ``integer_preprocess`` hparam (see its docstring
+and tests/test_preprocessing.py's TestIntegerPreprocess), and why
+export_module() requires it False rather than quantizing the matrix's
+intermediate pass to approximate the integer-dtype kernel.
 """
 
 from __future__ import annotations
@@ -42,30 +50,26 @@ def test_antialias_resize_matrix_matches_torchvision(h_in, w_in, h_out, w_out) -
     assert torch.allclose(got, expected, atol=5e-5, rtol=0)
 
 
-def test_antialias_resize_matrix_quantized_matches_uint8_resize_closely() -> None:
-    """``quantize_range`` brings a uint8-sourced resize within a few levels.
+def test_antialias_resize_matrix_matches_float_resize_at_export_size_tightly() -> None:
+    """At the acceptance pipeline's real downscale, the match is within float32 precision.
 
-    torchvision's antialiased bicubic resize on an integer dtype is not the
-    same linear operator as on a float dtype (verified directly against
-    ``_upsample_bicubic2d_aa``, on ordinary random data, independent of
-    saturation: the two kernels disagree by multiple intensity levels on
-    about 15 percent of pixels even with no clamping involved). No linear
-    operator built from float-domain probing can close that gap to less than
-    about one level, the floor this test checks for. On a real saturated
-    recorded frame, unquantized matrix application drifted by up to 2.3
-    levels; with ``quantize_range=(0, 255)`` it drops to about 1.
+    This is the bound export_module()'s adapter inherits when
+    AdaCLIPDetector.integer_preprocess=False, since the adapter's
+    preprocessing stays in float32 through the resize exactly like this. In
+    float64 the two agree to 1e-13 (machine precision): the operator is
+    mathematically exact, and the remaining difference at float32 (up to
+    about 5e-3 absolute on this 0-255 scale, 7.7e-5 relative) is ordinary
+    float32 accumulation noise from the two implementations summing the same
+    terms in a different order, not a gap in the reconstructed kernel.
     """
-    torch.manual_seed(0)
-    x = (torch.rand(1, 3, 1080, 1000) * 255).round().clamp(0, 255).to(torch.uint8)
+    torch.manual_seed(7)
+    x = torch.rand(1, 3, 1000, 1080) * 255.0
     expected = resize(x, [518, 518], interpolation=InterpolationMode.BICUBIC, antialias=True)
-    expected = expected.to(torch.float64)
 
-    op = AntialiasResizeMatrix((518, 518), quantize_range=(0.0, 255.0))
-    got = op(x.double()).round().clamp(0, 255)
+    op = AntialiasResizeMatrix((518, 518))
+    got = op(x)
 
-    diff = (expected - got).abs()
-    assert diff.max() <= 2.0, f"max diff {diff.max().item()} exceeds the one-to-two-level floor"
-    assert diff.mean() < 0.05, f"mean diff {diff.mean().item()} is too far from the floor"
+    assert torch.allclose(got, expected, atol=1e-5, rtol=1e-4)
 
 
 def test_antialias_resize_matrix_rejects_untraced_unbuilt_call() -> None:
