@@ -41,6 +41,147 @@ from cuvis_ai_adaclip.adaclip_upstream import (
     AdaCLIPModel,
     download_weights,
 )
+from cuvis_ai_adaclip.node._antialias_resize_matrix import AntialiasResizeMatrix
+
+
+class _AdaCLIPExportModule(torch.nn.Module):
+    """Traceable adapter for :meth:`AdaCLIPDetector.export_module`.
+
+    Replaces the parts of the eager forward pass a traced graph cannot carry:
+    the PIL/branching preprocessing becomes tensor-only resize and normalize,
+    the antialiased bicubic resize becomes :class:`AntialiasResizeMatrix` (two
+    buffers applied with ``einsum`` instead of an ONNX ``Resize`` node with
+    antialiasing, which ONNX Runtime does not evaluate identically to
+    torchvision at real image sizes, and which TensorRT does not accept at
+    all), the per-call BPE tokenization becomes two registered buffers of
+    token ids (precomputed once, outside tracing, for the node's
+    ``prompt_text``), and the AdaCLIP model itself runs with ``use_hsf``
+    forced off so the k-means fusion in
+    :class:`cuvis_ai_adaclip.node.semantic_fusion.AdaCLIPSemanticFusion` stays
+    outside the graph. The text encoder still runs inside the graph (the
+    prompt depth and prompter layers are dynamic), only the tokenization is
+    baked.
+
+    :class:`AntialiasResizeMatrix` reconstructs torchvision's float-dtype
+    resize kernel exactly, but the node's default preprocessing resizes a
+    uint8 tensor (to match PIL's byte-level behavior), and torchvision's
+    antialiased resize on an integer dtype is a different internal
+    implementation than on a float dtype: on a real recorded frame the two
+    disagree by a few parts in a thousand on the detector's ``scores`` port
+    after the full backbone, a gap no float-domain linear operator closes
+    (see ``tests/test_antialias_resize_matrix.py`` for the measured number).
+    ``export_module()`` therefore requires ``integer_preprocess=False`` as
+    well as ``semantic_fusion=False``: with the uint8 round trip off, the
+    node's own preprocessing stays in float32 through the resize, and this
+    adapter's matrix is an exact stand-in for it.
+
+    The resize matrices are not known until the first real input is seen, so
+    :meth:`AdaCLIPDetector.export_module` does not need to warm them up itself:
+    the exporter's own eager parity check runs this adapter on a real example
+    before tracing starts, which builds them.
+    """
+
+    def __init__(self, node: AdaCLIPDetector) -> None:
+        super().__init__()
+        assert node._adaclip_model is not None
+        self.clip_model = node._adaclip_model._clip_model
+        self.image_size = node.image_size
+        self.gaussian_sigma = node.gaussian_sigma
+        self.resize = AntialiasResizeMatrix((node.image_size, node.image_size))
+
+        text_layer = self.clip_model.text_embedding_layer
+        prompt_text = node.prompt_text.replace("-", " ")
+        token_id_tensors = []
+        for state in text_layer.prompt_state:
+            prompted_state = [phrase.format(prompt_text) for phrase in state]
+            prompted_sentences = [
+                template.format(s)
+                for s in prompted_state
+                for template in text_layer.prompt_templates
+            ]
+            token_id_tensors.append(text_layer.tokenize(prompted_sentences, context_length=77))
+
+        # One buffer per prompt state (normal, abnormal); their token counts differ
+        # (len(prompt_normal) != len(prompt_abnormal) times the template count), so
+        # they are kept separate rather than stacked into one regular tensor.
+        self.register_buffer("_normal_token_ids", token_id_tensors[0], persistent=False)
+        self.register_buffer("_abnormal_token_ids", token_id_tensors[1], persistent=False)
+
+        mean = torch.tensor(OPENAI_DATASET_MEAN, dtype=torch.float32).view(1, 3, 1, 1)
+        std = torch.tensor(OPENAI_DATASET_STD, dtype=torch.float32).view(1, 3, 1, 1)
+        self.register_buffer("_clip_mean", mean, persistent=False)
+        self.register_buffer("_clip_std", std, persistent=False)
+
+    def _preprocess(self, rgb_bhwc: torch.Tensor) -> torch.Tensor:
+        """Tensor-only resize and normalize, matching the node's inference preprocessing.
+
+        Mirrors ``AdaCLIPDetector._preprocess_rgb_torch_pil_match`` with
+        ``integer_preprocess=False``: antialiased bicubic resize on a float32
+        tensor (no uint8 quantization anywhere), then normalize. The resize
+        itself runs through :class:`AntialiasResizeMatrix` rather than
+        ``torchvision.transforms.v2.functional.resize`` directly, so the
+        exported graph carries matrix multiplications instead of an
+        antialiased ``Resize`` node; its output is already exactly
+        ``(image_size, image_size)``, so no center crop is needed. Staying in
+        float32 throughout means this matrix is an exact reconstruction of
+        the node's own resize (within float precision), not an approximation
+        of a uint8-dtype kernel: see ``AntialiasResizeMatrix`` and
+        ``AdaCLIPDetector.integer_preprocess`` for why ``export_module()``
+        requires that flag off.
+        """
+        x = rgb_bhwc
+        x = torch.where(x.amax(dim=(1, 2, 3), keepdim=True) <= 1.0, x * 255.0, x)
+        x = x.clamp(0, 255).to(torch.float32)
+        x = x.permute(0, 3, 1, 2)  # BHWC -> BCHW
+        x = self.resize(x)
+        x = x / 255.0
+        return (x - self._clip_mean) / self._clip_std
+
+    def _encode_text_state(self, token_ids: torch.Tensor) -> torch.Tensor:
+        """Reproduce ``TextEmbebddingLayer.encode_text`` for one prompt state."""
+        class_embeddings = self.clip_model.encode_text(token_ids)
+        class_embeddings = class_embeddings / class_embeddings.norm(dim=-1, keepdim=True)
+        class_embedding = class_embeddings.mean(dim=0)
+        return class_embedding / class_embedding.norm()
+
+    def forward(self, rgb_image: torch.Tensor) -> dict[str, torch.Tensor]:
+        """Run the exportable span: preprocessing, CLIP encode, plain similarity.
+
+        Parameters
+        ----------
+        rgb_image :
+            RGB image tensor ``[B, H, W, 3]``, matching the node's input port.
+        """
+        _, h, w, _ = rgb_image.shape
+        img_tensor = self._preprocess(rgb_image)
+
+        image_feature, patch_tokens, text_feature = self.clip_model.extract_feat(img_tensor, [""])
+
+        normal_feature = self._encode_text_state(self._normal_token_ids)
+        abnormal_feature = self._encode_text_state(self._abnormal_token_ids)
+        text_feature = torch.stack([normal_feature, abnormal_feature], dim=1).unsqueeze(0)
+        text_feature = torch.nn.functional.normalize(text_feature, dim=1)
+
+        anomaly_map, anomaly_score = self.clip_model.visual_text_similarity(
+            image_feature, patch_tokens, text_feature, aggregation=True
+        )
+        anomaly_map = anomaly_map.squeeze(1)  # [B, H', W'], matching AdaCLIP.forward
+        if self.gaussian_sigma > 0:
+            anomaly_map = AdaCLIPModel._gaussian_smooth_2d(anomaly_map, self.gaussian_sigma)
+        anomaly_map = torch.nn.functional.interpolate(
+            anomaly_map.unsqueeze(1), size=(h, w), mode="bilinear", align_corners=False
+        )
+        scores = anomaly_map.squeeze(1).unsqueeze(-1)  # [B, H, W, 1]
+
+        return {
+            "scores": scores,
+            "anomaly_score": anomaly_score,
+            "per_layer_scores": torch.zeros(1, 1, 1, 1, device=scores.device),
+            "image_score_2ch": torch.stack([1 - anomaly_score, anomaly_score], dim=1),
+            "patch_tokens": torch.stack(patch_tokens, dim=1),
+            "image_feature": image_feature,
+            "text_feature": text_feature,
+        }
 
 
 class AdaCLIPDetector(Node):
@@ -64,6 +205,16 @@ class AdaCLIPDetector(Node):
     When ``training_aggregation`` is False the upstream model returns per-layer
     anomaly maps (a list) which matches the paper's per-layer loss computation.
     At inference time ``aggregation=True`` is always used regardless of the flag.
+
+    ONNX export
+    -----------
+    ``export_module()`` needs ``semantic_fusion=False`` (see that method) and
+    ``integer_preprocess=False``. ``integer_preprocess`` (default True) keeps
+    today's preprocessing exactly as it is: the resize runs on a uint8 tensor,
+    matching PIL's byte-level behavior bit-identically. With it False, the
+    node keeps the image in float32 through the resize and crop on every
+    preprocessing path, which the exported graph's matrix-based resize can
+    reconstruct exactly (see ``_antialias_resize_matrix.py``).
     """
 
     _category = NodeCategory.MODEL
@@ -76,6 +227,9 @@ class AdaCLIPDetector(Node):
             NodeTag.INFERENCE,
             NodeTag.LEARNABLE,
             NodeTag.TORCH,
+            # Exports with semantic_fusion=False: the k-means fusion runs outside the
+            # graph in AdaCLIPSemanticFusion, since sklearn's KMeans is not traceable.
+            NodeTag.ONNX,
         }
     )
     ADAPTER_MODULE_NAMES: tuple[str, ...] = (
@@ -125,6 +279,38 @@ class AdaCLIPDetector(Node):
             ),
             optional=True,
         ),
+        "patch_tokens": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, -1),
+            description=(
+                "Projected patch tokens for every output layer, stacked as "
+                "[B, num_layers, N, D] (N patches, D the text embedding width). "
+                "At image_size=518 with the default backbone this is about 17 MB "
+                "per frame in float32. Only populated when semantic_fusion=False; "
+                "empty (1x1x1x1) tensor otherwise."
+            ),
+            optional=True,
+        ),
+        "image_feature": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1),
+            description=(
+                "Pooled and projected image feature [B, D], before the k-means "
+                "semantic fusion. Only populated when semantic_fusion=False; "
+                "empty (1x1) tensor otherwise."
+            ),
+            optional=True,
+        ),
+        "text_feature": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1),
+            description=(
+                "Text embedding [1, D, 2] (normal, anomaly) shared across the image "
+                "batch, in the shape AdaCLIP's visual_text_similarity expects. Only "
+                "populated when semantic_fusion=False; empty (1x1x1) tensor otherwise."
+            ),
+            optional=True,
+        ),
     }
 
     def __init__(
@@ -142,6 +328,9 @@ class AdaCLIPDetector(Node):
         enable_gradients: bool = False,
         use_torch_preprocess: bool = True,
         training_aggregation: bool = True,
+        semantic_fusion: bool = True,
+        k_clusters: int = 20,
+        integer_preprocess: bool = True,
         **kwargs: Any,
     ) -> None:
         super().__init__(
@@ -158,6 +347,9 @@ class AdaCLIPDetector(Node):
             enable_gradients=enable_gradients,
             use_torch_preprocess=use_torch_preprocess,
             training_aggregation=training_aggregation,
+            semantic_fusion=semantic_fusion,
+            k_clusters=k_clusters,
+            integer_preprocess=integer_preprocess,
             **kwargs,
         )
 
@@ -174,6 +366,23 @@ class AdaCLIPDetector(Node):
         self.enable_gradients = enable_gradients
         self.use_torch_preprocess = use_torch_preprocess
         self.training_aggregation = training_aggregation
+        # True (default) keeps today's behavior exactly: the k-means hybrid semantic
+        # fusion runs inside the model and folds into anomaly_score. False drops HSF
+        # from the image score and exposes patch_tokens/image_feature/text_feature so
+        # an AdaCLIPSemanticFusion node downstream (or the ONNX export) can reproduce
+        # it outside the traced graph.
+        self.semantic_fusion = semantic_fusion
+        self.k_clusters = k_clusters
+        # True (default) keeps today's inference behavior exactly: preprocessing
+        # quantizes to uint8 before the resize, matching PIL's byte-level
+        # behavior, bit-identical to every release before this hparam existed.
+        # False keeps the image in float32 through the resize and crop on every
+        # preprocessing path (the torch PIL-match path and, equally, the export
+        # adapter's own resize); export_module() requires this to be False,
+        # since torchvision's antialiased resize on an integer dtype is not the
+        # linear operator AntialiasResizeMatrix reconstructs (see its docstring
+        # and _antialias_resize_matrix.py's module docstring).
+        self.integer_preprocess = integer_preprocess
         self._warmup_done = False
 
         # Log initialization parameters at DEBUG level (only shown if debug logging enabled)
@@ -237,6 +446,8 @@ class AdaCLIPDetector(Node):
             image_size=self.image_size,
             prompting_depth=self.prompting_depth,
             prompting_length=self.prompting_length,
+            use_hsf=self.semantic_fusion,
+            k_clusters=self.k_clusters,
             device=str(device),  # Initial device hint
         )
         model.load_weights(weight_path)
@@ -334,15 +545,21 @@ class AdaCLIPDetector(Node):
 
         Pipeline: Resize((S,S), BICUBIC) -> CenterCrop(S) -> ToTensor() -> Normalize(mean,std)
 
-        This matches upstream PIL preprocessing exactly:
+        This matches upstream PIL preprocessing exactly when ``integer_preprocess``
+        is True (the default):
         - Fixed-size resize (no aspect ratio preservation)
         - Bicubic interpolation with antialias
-        - uint8 quantization before resizing (like PIL sees it) - SKIPPED when enable_gradients=True
+        - uint8 quantization before resizing (like PIL sees it)
         - ToTensor() equivalent: uint8 -> float in [0,1]
         - Normalize with cached mean/std
 
-        NOTE: When enable_gradients=True, we skip uint8 conversion to preserve gradient flow.
-        uint8 is not a floating-point type and breaks the computation graph.
+        The uint8 quantization is skipped, and the image stays in float32
+        through the resize and crop, when ``enable_gradients=True`` (uint8
+        is not a floating-point type and breaks the computation graph) or
+        when ``integer_preprocess=False`` (torchvision's antialiased bicubic
+        resize on an integer dtype is not the same linear operator as on a
+        float dtype; see ``_antialias_resize_matrix.py``'s module docstring).
+        Either flag alone is enough to take the float32 path.
         """
         x = rgb_bhwc  # [B, H, W, 3]
 
@@ -350,14 +567,14 @@ class AdaCLIPDetector(Node):
         if x.max() <= 1.0:
             x = x * 255.0
 
-        # When enable_gradients=True, we MUST stay in float to preserve gradient flow.
-        # torch.uint8 is not a floating-point type and breaks the computation graph.
-        if self.enable_gradients:
-            # Differentiable path: clamp to [0,255] but stay in float32
-            x = x.clamp(0, 255).to(torch.float32)  # [B, H, W, 3] float32
-        else:
-            # Non-differentiable path: exact PIL match with uint8 quantization
+        use_uint8 = self.integer_preprocess and not self.enable_gradients
+        if use_uint8:
+            # Exact PIL match: uint8 quantization before the resize
             x = x.round().clamp(0, 255).to(torch.uint8)  # [B, H, W, 3] uint8
+        else:
+            # Float32 throughout: required for gradient flow, or to keep the
+            # resize an exact linear operator (integer_preprocess=False)
+            x = x.clamp(0, 255).to(torch.float32)  # [B, H, W, 3] float32
 
         # BHWC -> BCHW
         x = x.permute(0, 3, 1, 2)  # [B, 3, H, W]
@@ -365,7 +582,7 @@ class AdaCLIPDetector(Node):
         S = self.image_size
 
         # Resize to fixed size (S,S) with bicubic, antialias if available
-        if HAS_TORCHVISION_V2 and not self.enable_gradients:
+        if HAS_TORCHVISION_V2 and use_uint8:
             # torchvision.transforms.v2 can handle uint8 directly
             try:
                 x = F_v2.resize(
@@ -383,7 +600,7 @@ class AdaCLIPDetector(Node):
                     x, size=(S, S), mode="bicubic", align_corners=False
                 )
         else:
-            # Differentiable path or fallback: use interpolate (needs float)
+            # Float32 path (gradients, or integer_preprocess=False): use interpolate
             if x.dtype != torch.float32:
                 x = x.to(torch.float32)
             try:
@@ -426,7 +643,12 @@ class AdaCLIPDetector(Node):
         This is faster than PIL preprocessing and works well for inference.
 
         When ``use_torch_preprocess`` is False, uses exact PIL-based preprocessing
-        that matches the original CLIP preprocessing pipeline.
+        that matches the original CLIP preprocessing pipeline. This path is
+        CPU-only and always quantizes to uint8 (``PIL.Image.fromarray`` requires
+        it); ``integer_preprocess`` has no effect here, since there is no float
+        equivalent of PIL's own byte-level resize. It is also never used for
+        export: :meth:`export_module` always builds its adapter from the torch
+        path's math, regardless of ``use_torch_preprocess``.
 
         The ``enable_gradients`` flag controls whether gradients flow through the
         preprocessing, but the preprocessing method choice is independent.
@@ -547,7 +769,12 @@ class AdaCLIPDetector(Node):
         if self.training and not self.training_aggregation:
             use_aggregation = False
 
-        # Run inference
+        # Run inference. With semantic_fusion=False, the model already dropped HSF
+        # from the image score (use_hsf=False on the underlying AdaCLIP model), and
+        # we additionally ask for the raw features an AdaCLIPSemanticFusion node
+        # downstream would need to reproduce it.
+        want_components = not self.semantic_fusion
+        components: dict[str, torch.Tensor] = {}
         if torch.cuda.is_available():
             torch.cuda.synchronize()
         inference_start = time.perf_counter()
@@ -555,21 +782,27 @@ class AdaCLIPDetector(Node):
         with grad_ctx():
             if self.use_half_precision and torch.cuda.is_available():
                 with torch.amp.autocast("cuda", dtype=torch.float16):
-                    anomaly_map, anomaly_score = self._adaclip_model.predict(
+                    predict_out = self._adaclip_model.predict(
                         img_tensor,
                         prompt=self.prompt_text,
                         sigma=self.gaussian_sigma,
                         enable_gradients=self.enable_gradients,
                         aggregation=use_aggregation,
+                        return_components=want_components,
                     )
             else:
-                anomaly_map, anomaly_score = self._adaclip_model.predict(
+                predict_out = self._adaclip_model.predict(
                     img_tensor,
                     prompt=self.prompt_text,
                     sigma=self.gaussian_sigma,
                     enable_gradients=self.enable_gradients,
                     aggregation=use_aggregation,
+                    return_components=want_components,
                 )
+        if want_components:
+            anomaly_map, anomaly_score, components = predict_out
+        else:
+            anomaly_map, anomaly_score = predict_out
         if torch.cuda.is_available():
             torch.cuda.synchronize()
         inference_end = time.perf_counter()
@@ -683,6 +916,15 @@ class AdaCLIPDetector(Node):
         #           f"min={scores.min().item():.4f}, max={scores.max().item():.4f}, "
         #           f"mean={scores.mean().item():.4f}, requires_grad={scores.requires_grad}")
 
+        if components:
+            patch_tokens = components["patch_tokens"]
+            image_feature = components["image_feature"]
+            text_feature = components["text_feature"]
+        else:
+            patch_tokens = torch.zeros(1, 1, 1, 1, device=scores.device)
+            image_feature = torch.zeros(1, 1, device=scores.device)
+            text_feature = torch.zeros(1, 1, 1, device=scores.device)
+
         return {
             "scores": scores,
             "anomaly_score": anomaly_score_1d
@@ -690,7 +932,46 @@ class AdaCLIPDetector(Node):
             else anomaly_score_1d.squeeze(),
             "per_layer_scores": per_layer_scores,
             "image_score_2ch": image_score_2ch,
+            "patch_tokens": patch_tokens,
+            "image_feature": image_feature,
+            "text_feature": text_feature,
         }
+
+    def export_module(self) -> torch.nn.Module:
+        """Return the traceable adapter the span exporter runs in place of forward.
+
+        Valid only with ``semantic_fusion=False`` and ``integer_preprocess=False``:
+
+        - ``semantic_fusion``: the k-means hybrid semantic fusion runs on
+          sklearn's ``KMeans``, which the dynamo exporter cannot trace. Add
+          :class:`cuvis_ai_adaclip.node.semantic_fusion.AdaCLIPSemanticFusion`
+          after this node to reproduce it outside the graph.
+        - ``integer_preprocess``: with it True (the default), the node's own
+          preprocessing resizes a uint8 tensor, and torchvision's antialiased
+          bicubic resize on an integer dtype is not the same linear operator
+          :class:`cuvis_ai_adaclip.node._antialias_resize_matrix.AntialiasResizeMatrix`
+          reconstructs (see its module docstring); the exported graph would
+          then disagree with forward() by a few parts in a thousand on
+          ``scores``, well past the exporter's parity tolerance. With it
+          False, the node's preprocessing stays in float32 through the resize
+          on every path, matching the adapter's resize exactly.
+        """
+        missing = []
+        if self.semantic_fusion:
+            missing.append("semantic_fusion=False")
+        if self.integer_preprocess:
+            missing.append("integer_preprocess=False")
+        if missing:
+            raise ValueError(
+                "AdaCLIPDetector.export_module() needs " + " and ".join(missing) + ": "
+                "semantic_fusion=False is needed because the k-means hybrid semantic "
+                "fusion cannot be traced (add AdaCLIPSemanticFusion after this node to "
+                "reproduce it outside the graph); integer_preprocess=False is needed "
+                "because the exported resize cannot reconstruct torchvision's "
+                "integer-dtype resize kernel exactly (see AntialiasResizeMatrix)."
+            )
+        self._ensure_model_loaded()
+        return _AdaCLIPExportModule(self)
 
     # def _save_debug_tensor(
     #     self, tensor: torch.Tensor, name: str, context: Context | None, frame_idx: int

@@ -1,0 +1,92 @@
+metadata:
+  name: AdaCLIP_Export_TwoNode
+  description: >-
+    AdaCLIPDetector with semantic_fusion off, followed by AdaCLIPSemanticFusion.
+    This is the deployment form an ONNX export produces: the detector's CLIP
+    graph (preprocessing, backbone, text encoder, similarity) is the exportable
+    span, and the k-means hybrid semantic fusion stays in Python as its own node
+    since sklearn's KMeans is not traceable.
+  created: ''
+  tags:
+  - adaclip
+  - onnx
+  - export
+  author: cuvis.ai
+  cuvis_ai_version: 0.5.1
+plugins:
+- adaclip
+- cuvis_ai_builtin
+nodes:
+- name: lentils_data_node
+  class_name: cuvis_ai.node.data.LentilsAnomalyDataNode
+  hparams:
+    normal_class_ids:
+    - 0
+    - 1
+- name: baseline_rgb_selector
+  class_name: cuvis_ai.node.channel_selector.FixedWavelengthSelector
+  hparams:
+    target_wavelengths:
+    - 650.0
+    - 550.0
+    - 450.0
+- name: adaclip_detector
+  class_name: cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
+  hparams:
+    weight_name: pretrained_all
+    backbone: ViT-L-14-336
+    prompt_text: ''
+    image_size: 518
+    prompting_depth: 4
+    prompting_length: 5
+    gaussian_sigma: 4.0
+    use_half_precision: false
+    enable_warmup: false
+    enable_gradients: false
+    use_torch_preprocess: true
+    semantic_fusion: false
+    integer_preprocess: false
+    k_clusters: 20
+- name: adaclip_fusion
+  class_name: cuvis_ai_adaclip.node.semantic_fusion.AdaCLIPSemanticFusion
+  hparams:
+    k_clusters: 20
+- name: quantile_decider
+  class_name: cuvis_ai.node.deciders.binary_decider.QuantileBinaryDecider
+  hparams:
+    quantile: 0.995
+    reduce_dims: null
+- name: score_heatmap_viz
+  class_name: cuvis_ai.node.anomaly_visualization.ScoreHeatmapVisualizer
+  hparams:
+    normalize_scores: true
+    cmap: inferno
+    up_to: 5
+- name: anomaly_metrics
+  class_name: cuvis_ai.node.metrics.AnomalyDetectionMetrics
+connections:
+- source: lentils_data_node.outputs.cube
+  target: baseline_rgb_selector.inputs.cube
+- source: lentils_data_node.outputs.wavelengths
+  target: baseline_rgb_selector.inputs.wavelengths
+- source: lentils_data_node.outputs.mask
+  target: anomaly_metrics.inputs.targets
+- source: baseline_rgb_selector.outputs.rgb_image
+  target: adaclip_detector.inputs.rgb_image
+- source: adaclip_detector.outputs.patch_tokens
+  target: adaclip_fusion.inputs.patch_tokens
+- source: adaclip_detector.outputs.image_feature
+  target: adaclip_fusion.inputs.image_feature
+- source: adaclip_detector.outputs.text_feature
+  target: adaclip_fusion.inputs.text_feature
+- source: adaclip_detector.outputs.scores
+  target: quantile_decider.inputs.logits
+- source: adaclip_detector.outputs.scores
+  target: score_heatmap_viz.inputs.scores
+- source: adaclip_detector.outputs.scores
+  target: anomaly_metrics.inputs.logits
+- source: quantile_decider.outputs.decisions
+  target: anomaly_metrics.inputs.decisions
+# adaclip_fusion.outputs.anomaly_score carries the fused image-level score (the
+# counterpart to the detector's own anomaly_score when semantic_fusion=True);
+# wire it to whatever node consumes an image-level score in your pipeline.

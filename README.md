@@ -216,6 +216,46 @@ A cuvis.ai `Node` for zero-shot anomaly detection on RGB images.
 
 **Backbone Options:** `"ViT-L-14-336"`, `"ViT-L-14"`, `"ViT-B-16"`, `"ViT-B-32"`, `"ViT-H-14"`
 
+### ONNX export and the two-node deployment form
+
+`AdaCLIPDetector` exports its CLIP graph (preprocessing, backbone, prompted text
+encoder, similarity) to ONNX through `export_module()` and cuvis-ai-core's span
+exporter. The k-means hybrid semantic fusion (HSF) runs on scikit-learn's
+`KMeans`, which cannot be traced, so it lives in its own node,
+`AdaCLIPSemanticFusion`, that runs after the exported span.
+
+Set `semantic_fusion: false` on the detector to get the plain (non-fused) image
+score plus three extra output ports the fusion node needs:
+
+| Port | Shape | Notes |
+|------|-------|-------|
+| `patch_tokens` | `[B, num_layers, N, D]` | Projected patch tokens per layer, stacked. At `image_size=518` with the default backbone this is about 17 MB per frame in float32. |
+| `image_feature` | `[B, D]` | Pooled and projected image feature. |
+| `text_feature` | `[1, D, 2]` | Text embedding (normal, anomaly), shared across the image batch. |
+
+Wire those three ports into `AdaCLIPSemanticFusion` (hparam `k_clusters`
+matching the detector's) to reproduce the fused `anomaly_score` the detector
+computes internally when `semantic_fusion` is left at its default, `true`. The
+pixel-level `scores` port never goes through HSF and is identical in both
+modes. See
+[`examples/adaclip/adaclip_export_two_node.yaml`](examples/adaclip/adaclip_export_two_node.yaml)
+for the full two-node pipeline.
+
+`export_module()` also needs `integer_preprocess: false`. The node's default
+preprocessing (`integer_preprocess: true`) resizes a uint8 tensor to match
+PIL's byte-level behavior bit-identically; torchvision's antialiased bicubic
+resize on an integer dtype is a different internal implementation than on a
+float dtype, so an exported graph built from that default would disagree
+with the node's own output by a few parts in a thousand on `scores`, past
+the exporter's default parity tolerance. With `integer_preprocess: false`
+the node keeps the image in float32 through the resize on every
+preprocessing path, which the exported graph's resize (two fixed matrices
+built from torchvision's own kernel) reconstructs exactly.
+
+Calling `export_module()` while `semantic_fusion` is `true` or
+`integer_preprocess` is `true` raises, naming whichever of the two still
+needs to be set to `false`.
+
 ## Pre-trained Weights
 
 The three checkpoints released by the AdaCLIP authors are mirrored unchanged at

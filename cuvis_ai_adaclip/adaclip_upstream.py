@@ -256,8 +256,9 @@ class AdaCLIPModel(nn.Module):
         sigma: float = 4.0,
         aggregation: bool = True,
         enable_gradients: bool = False,
+        return_components: bool = False,
         **_kwargs: Any,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor] | tuple[torch.Tensor, torch.Tensor, dict[str, Any]]:
         """Run anomaly detection on an image batch.
 
         Parameters
@@ -271,6 +272,11 @@ class AdaCLIPModel(nn.Module):
             Gaussian smoothing sigma for the anomaly map.
         aggregation :
             Whether to aggregate multi-scale features.
+        return_components :
+            When True, also returns the raw features the image-score fusion needs
+            (``patch_tokens``, ``image_feature``, ``text_feature``) as a third,
+            dict-valued return. Only meaningful with ``self.use_hsf`` False, since
+            with HSF on, the fused score already needs those tensors internally.
 
         NOTE: This method does NOT call .to(device) on the input. The caller
         is responsible for ensuring the input is on the correct device.
@@ -299,12 +305,32 @@ class AdaCLIPModel(nn.Module):
         # flow through AdaCLIP to upstream nodes while keeping AdaCLIP weights
         # frozen.
         ctx = torch.no_grad if not enable_gradients else torch.enable_grad
+        components: dict[str, Any] = {}
         with ctx():
-            anomaly_map, anomaly_score = self._clip_model(
-                image,
-                cls_name,
-                aggregation=aggregation,
-            )
+            if return_components:
+                image_feature, patch_tokens, text_feature = self._clip_model.extract_feat(
+                    image, cls_name
+                )
+                anomaly_map, anomaly_score = self._clip_model.visual_text_similarity(
+                    image_feature, patch_tokens, text_feature, aggregation
+                )
+                if aggregation:
+                    # AdaCLIP.forward() squeezes the singleton channel dim after
+                    # visual_text_similarity; replicate it here since we call
+                    # visual_text_similarity directly instead of going through
+                    # AdaCLIP.forward (which does not expose the raw features).
+                    anomaly_map = anomaly_map.squeeze(1)
+                components = {
+                    "patch_tokens": torch.stack(patch_tokens, dim=1),
+                    "image_feature": image_feature,
+                    "text_feature": text_feature,
+                }
+            else:
+                anomaly_map, anomaly_score = self._clip_model(
+                    image,
+                    cls_name,
+                    aggregation=aggregation,
+                )
         if torch.cuda.is_available():
             torch.cuda.synchronize()
         inference_end = time.perf_counter()
@@ -326,6 +352,8 @@ class AdaCLIPModel(nn.Module):
         if sigma > 0 and isinstance(anomaly_map, torch.Tensor):
             anomaly_map = self._gaussian_smooth_2d(anomaly_map, sigma)
 
+        if return_components:
+            return anomaly_map, anomaly_score, components
         return anomaly_map, anomaly_score
 
     @staticmethod

@@ -148,6 +148,111 @@ class TestPreprocessRgbTorch:
         assert rgb.grad is not None
 
 
+class TestIntegerPreprocess:
+    """Tests for the integer_preprocess hparam on _preprocess_rgb_torch_pil_match.
+
+    True (the default) keeps preprocessing exactly as it has always been: the
+    resize runs on a uint8 tensor, matching PIL's byte-level behavior. False
+    keeps the image in float32 through the resize and crop, which is what
+    export_module() requires (AntialiasResizeMatrix reconstructs a float-dtype
+    resize kernel exactly, not an integer-dtype one).
+    """
+
+    def test_default_matches_uint8_quantized_reference(self) -> None:
+        """integer_preprocess=True (the default) is bit-identical to a hand-built uint8 reference.
+
+        This characterizes the exact preprocessing this repo has always shipped,
+        reimplemented here independently of AdaCLIPDetector, so a regression in
+        the default path (not just a difference from the float path) is caught.
+        """
+        from torchvision.transforms import InterpolationMode
+        from torchvision.transforms.v2 import functional as f_v2
+
+        detector = AdaCLIPDetector(image_size=96, use_torch_preprocess=True)
+        torch.manual_seed(1)
+        rgb = torch.rand(2, 48, 48, 3) * 255.0
+
+        result = detector._preprocess_rgb_torch_pil_match(rgb)
+
+        reference = rgb.round().clamp(0, 255).to(torch.uint8).permute(0, 3, 1, 2)
+        reference = f_v2.resize(
+            reference, size=[96, 96], interpolation=InterpolationMode.BICUBIC, antialias=True
+        )
+        reference = f_v2.center_crop(reference, output_size=[96, 96]).to(torch.float32) / 255.0
+        reference = (reference - detector._clip_mean) / detector._clip_std
+
+        assert torch.equal(result, reference)
+
+    def test_integer_preprocess_false_stays_float_through_resize(self) -> None:
+        """integer_preprocess=False never casts to uint8, even for saturated input."""
+        detector = AdaCLIPDetector(
+            image_size=64, use_torch_preprocess=True, integer_preprocess=False
+        )
+        rgb = torch.rand(1, 32, 32, 3) * 255.0
+
+        result = detector._preprocess_rgb_torch_pil_match(rgb)
+
+        assert result.dtype == torch.float32
+        assert result.shape == (1, 3, 64, 64)
+
+    def test_integer_preprocess_false_matches_float_resize_closely(self) -> None:
+        """At a real export size, the float path matches torchvision's float resize to 1e-6.
+
+        AntialiasResizeMatrix (used by export_module()'s adapter) reconstructs
+        exactly this computation, so this is the bound the exported graph
+        inherits when integer_preprocess=False.
+        """
+        from torchvision.transforms import InterpolationMode
+        from torchvision.transforms.v2 import functional as f_v2
+
+        detector = AdaCLIPDetector(
+            image_size=518, use_torch_preprocess=True, integer_preprocess=False
+        )
+        torch.manual_seed(2)
+        rgb = torch.rand(1, 1000, 1080, 3) * 255.0
+
+        result = detector._preprocess_rgb_torch_pil_match(rgb)
+
+        reference = rgb.clamp(0, 255).to(torch.float32).permute(0, 3, 1, 2)
+        reference = f_v2.resize(
+            reference, size=[518, 518], interpolation=InterpolationMode.BICUBIC, antialias=True
+        )
+        reference = reference / 255.0
+        reference = (reference - detector._clip_mean) / detector._clip_std
+
+        assert torch.allclose(result, reference, atol=1e-6, rtol=0)
+
+    def test_integer_preprocess_measured_difference_from_default(self) -> None:
+        """Documents, without over-asserting, how far the two modes drift apart.
+
+        torchvision's antialiased bicubic resize on an integer dtype is a
+        different internal implementation than on a float dtype (see
+        _antialias_resize_matrix.py's module docstring), so the two
+        preprocessing modes are not expected to agree closely even on
+        ordinary, non-saturated random data. Measured here (seed fixed): a
+        1000x1080 random RGB image resized to 518x518 differs between the two
+        modes by about 0.01 in normalized (post mean/std) units at the max,
+        the same order of magnitude as the acceptance pipeline's measured gap
+        on AdaCLIPDetector's ``scores`` port (about 2.6e-3, pre-normalization
+        scale). This test only checks the difference stays within a loose
+        bound typical of one full-resolution resize's worth of drift; it does
+        not assert a tight number, since the exact value depends on the ATen
+        build and is not a contract either preprocessing mode owes the other.
+        """
+        detector_int = AdaCLIPDetector(image_size=518, use_torch_preprocess=True)
+        detector_float = AdaCLIPDetector(
+            image_size=518, use_torch_preprocess=True, integer_preprocess=False
+        )
+        torch.manual_seed(3)
+        rgb = torch.rand(1, 1000, 1080, 3) * 255.0
+
+        out_int = detector_int._preprocess_rgb_torch_pil_match(rgb)
+        out_float = detector_float._preprocess_rgb_torch_pil_match(rgb)
+
+        diff = (out_int - out_float).abs()
+        assert diff.max() < 0.5, f"max diff {diff.max().item()} is far outside the expected order"
+
+
 class TestPredictSmoothingGuard:
     """Tests for smoothing guard in AdaCLIPModel.predict."""
 
