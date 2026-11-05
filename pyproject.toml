@@ -7,7 +7,7 @@ name = "cuvis-ai-adaclip"
 dynamic = ["version"]
 description = "AdaCLIP (ECCV 2024) with a cuvis.ai-compatible plugin package."
 readme = "README.md"
-requires-python = ">=3.11,<3.12"
+requires-python = ">=3.11,<3.14"
 license = "MIT"
 authors = [
     { name = "Cubert GmbH, Ulm, Germany", email = "cuvis.ai@cubert-gmbh.com" },
@@ -19,6 +19,8 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Scientific/Engineering :: Image Processing",

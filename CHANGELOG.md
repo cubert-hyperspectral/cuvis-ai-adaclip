@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.1 - 2026-11-05
+
+- Python 3.12 and 3.13 are supported: `requires-python` is `>=3.11,<3.14` (was `<3.12`), so pip installs the plugin on Colab, which runs 3.13. CI tests 3.11 and 3.13.
+- The `dev` extra relocks onto cuvis-ai-dataloader 0.9.1 (was 0.5.0), the first dataloader release that installs on 3.13; no other package in the lock changed version. CI syncs with `uv sync --locked`, so a stale `uv.lock` fails the run instead of being re-resolved.
+
 ## 0.6.0 - 2026-11-04
 
 - `gradio` is no longer a dependency: the plugin never imports it, only the upstream demo `app.py` does (install it by hand to run that), and with cuvis-ai-core 0.19.2 raising pillow to 13 no gradio release resolves except 3.36.1 from 2023, which the lock had fallen back to. The locked environment is refreshed for the open pip-audit advisories (certifi 2026.10.23, fsspec 2026.9.0, msgpack 1.2.4, multidict 7.2.1, werkzeug 3.1.9); setuptools GHSA-xmj3-9gf7-h52w is ignored in CI with a comment, behind the same torch wheel cap as PYSEC-2026-3447.
