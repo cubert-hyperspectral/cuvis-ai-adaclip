@@ -47,7 +47,6 @@ dependencies = [
     "ftfy",
     "seaborn",
     "regex",
-    "gradio",
     "torchaudio",
     "click", # For CLI interface
     "pandas>=2.3.0",
