@@ -17,8 +17,15 @@ permissions:
 
 jobs:
   test:
-    name: Run tests with coverage
+    name: Run tests with coverage (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Both ends of requires-python (>=3.11,<3.14).
+        python-version: ["3.11", "3.13"]
+    env:
+      UV_PYTHON: ${{ matrix.python-version }}
     container:
       image: cubertgmbh/cuvis_pyil:3.5.0-ubuntu24.04
     steps:
@@ -45,11 +52,11 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
         run: |
-          uv sync --all-extras
+          uv sync --locked --all-extras
 
       - name: Run tests with coverage
         run: |
@@ -61,6 +68,7 @@ jobs:
             -v
 
       - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.11'
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -91,7 +99,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv sync --all-extras
+          uv sync --locked --all-extras
 
       - name: Run mypy
         run: |
@@ -119,7 +127,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv sync --all-extras
+          uv sync --locked --all-extras
 
       - name: Run ruff check
         run: |
@@ -151,7 +159,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv sync --all-extras
+          uv sync --locked --all-extras
 
       - name: Run pip-audit
         run: |
@@ -195,7 +203,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv sync --all-extras
+          uv sync --locked --all-extras
 
       - name: Build package
         run: |
